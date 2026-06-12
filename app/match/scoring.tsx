@@ -11,6 +11,7 @@ import { router } from 'expo-router';
 import { useMatchStore } from '@/store/matchStore';
 import { PlayerCard } from '@/components/PlayerCard';
 import { BallGrid } from '@/components/BallGrid';
+import { RulesModal } from '@/components/RulesModal';
 import { colors } from '@/theme/colors';
 import { breakerForFrame, playerFullName } from '@/domain/types';
 
@@ -32,6 +33,7 @@ export default function Scoring() {
   const currentBreakerSlot = useMatchStore((s) => s.currentBreakerSlot());
 
   const [askedFinish, setAskedFinish] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   // Auto-detect race-to completion (first time a player crosses target)
   useEffect(() => {
@@ -165,11 +167,20 @@ export default function Scoring() {
 
         <View style={styles.headerCenterWrap}>
           <Text style={styles.headerCenter}>RACE TO {current.raceTo}</Text>
-          {showEndChip && (
-            <Pressable onPress={onEndMatch} style={styles.endChip}>
-              <Text style={styles.endChipText}>END MATCH</Text>
+          <View style={styles.chipRow}>
+            <Pressable
+              onPress={() => setRulesOpen(true)}
+              style={({ pressed }) => [styles.rulesChip, pressed && { opacity: 0.7 }]}
+              hitSlop={6}
+            >
+              <Text style={styles.rulesChipText}>RULES</Text>
             </Pressable>
-          )}
+            {showEndChip && (
+              <Pressable onPress={onEndMatch} style={styles.endChip}>
+                <Text style={styles.endChipText}>END MATCH</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
 
         <Pressable
@@ -209,6 +220,8 @@ export default function Scoring() {
       <View style={{ marginTop: 14 }}>
         <BallGrid pocketedBy={pocketedBy} onTapBall={onTapBall} />
       </View>
+
+      <RulesModal visible={rulesOpen} onClose={() => setRulesOpen(false)} />
     </ScrollView>
   );
 }
@@ -240,6 +253,11 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     fontWeight: '700',
   },
+  chipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   endChip: {
     backgroundColor: colors.danger,
     paddingHorizontal: 12,
@@ -250,6 +268,19 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '800',
     fontSize: 11,
+    letterSpacing: 1.5,
+  },
+  rulesChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  rulesChipText: {
+    color: colors.textSecondary,
+    fontWeight: '700',
+    fontSize: 10,
     letterSpacing: 1.5,
   },
   frameLabel: {

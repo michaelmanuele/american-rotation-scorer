@@ -5,9 +5,11 @@ import { colors } from '@/theme/colors';
 import { useMatchStore } from '@/store/matchStore';
 import { findInProgress, type MatchSummary } from '@/db/matches';
 import { playerFullName } from '@/domain/types';
+import { RulesModal } from '@/components/RulesModal';
 
 export default function Home() {
   const [resume, setResume] = useState<MatchSummary | null>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const abandonMatch = useMatchStore((s) => s.abandonMatch);
   const resumeMatch = useMatchStore((s) => s.resumeMatch);
   const currentInStore = useMatchStore((s) => s.current);
@@ -105,6 +107,16 @@ export default function Home() {
         <MenuButton href="/history" label="History" />
         <MenuButton href="/roster" label="Players" />
       </View>
+
+      <Pressable
+        onPress={() => setRulesOpen(true)}
+        style={({ pressed }) => [styles.rulesLink, pressed && { opacity: 0.6 }]}
+        hitSlop={10}
+      >
+        <Text style={styles.rulesLinkText}>Rules Summary</Text>
+      </Pressable>
+
+      <RulesModal visible={rulesOpen} onClose={() => setRulesOpen(false)} />
     </View>
   );
 }
@@ -200,5 +212,18 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
     letterSpacing: 1,
+  },
+  rulesLink: {
+    alignSelf: 'center',
+    marginTop: 24,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  rulesLinkText: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    fontWeight: '600',
   },
 });
