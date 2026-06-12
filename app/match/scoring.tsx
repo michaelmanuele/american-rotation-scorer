@@ -173,7 +173,7 @@ export default function Scoring() {
               style={({ pressed }) => [styles.rulesChip, pressed && { opacity: 0.7 }]}
               hitSlop={6}
             >
-              <Text style={styles.rulesChipText}>REF</Text>
+              <Text style={styles.rulesChipText}>RULES</Text>
             </Pressable>
             {showEndChip && (
               <Pressable onPress={onEndMatch} style={styles.endChip}>
@@ -271,16 +271,17 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
   rulesChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
   },
   rulesChipText: {
-    color: colors.textSecondary,
-    fontWeight: '700',
-    fontSize: 10,
+    color: colors.textPrimary,
+    fontWeight: '800',
+    fontSize: 11,
     letterSpacing: 1.5,
   },
   frameLabel: {
