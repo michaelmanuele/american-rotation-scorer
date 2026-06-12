@@ -1,3 +1,6 @@
+// Side-effect import: must be the very first import in the entry file.
+// Required by react-native-gesture-handler on native platforms.
+import 'react-native-gesture-handler';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
