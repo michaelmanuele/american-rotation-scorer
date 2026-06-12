@@ -2,18 +2,24 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { colors } from '@/theme/colors';
 import { getDB } from '@/db/database';
+import { useMatchStore } from '@/store/matchStore';
 
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
+  const hydrateFromDB = useMatchStore((s) => s.hydrateFromDB);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         await getDB();
+        // After DB is ready, restore any in-progress match into the store
+        // so the Home banner / scoring screen can resume seamlessly.
+        await hydrateFromDB();
         if (!cancelled) setDbReady(true);
       } catch (err) {
         if (!cancelled) {
@@ -24,30 +30,34 @@ export default function RootLayout() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [hydrateFromDB]);
 
   if (dbError) {
     return (
-      <View style={styles.center}>
-        <StatusBar style="light" />
-        <Text style={styles.errorTitle}>Database error</Text>
-        <Text style={styles.errorBody}>{dbError}</Text>
-      </View>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={styles.center}>
+          <StatusBar style="light" />
+          <Text style={styles.errorTitle}>Database error</Text>
+          <Text style={styles.errorBody}>{dbError}</Text>
+        </View>
+      </GestureHandlerRootView>
     );
   }
 
   if (!dbReady) {
     return (
-      <View style={styles.center}>
-        <StatusBar style="light" />
-        <ActivityIndicator color={colors.primary} size="large" />
-        <Text style={styles.loadingText}>Loading…</Text>
-      </View>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={styles.center}>
+          <StatusBar style="light" />
+          <ActivityIndicator color={colors.primary} size="large" />
+          <Text style={styles.loadingText}>Loading…</Text>
+        </View>
+      </GestureHandlerRootView>
     );
   }
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -67,7 +77,7 @@ export default function RootLayout() {
         <Stack.Screen name="history" options={{ title: 'History' }} />
         <Stack.Screen name="roster" options={{ title: 'Players' }} />
       </Stack>
-    </>
+    </GestureHandlerRootView>
   );
 }
 

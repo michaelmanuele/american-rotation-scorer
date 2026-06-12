@@ -4,14 +4,23 @@ import {
   isFrameComplete,
   matchWinner,
   playerFramePoints,
-  type PocketEvent,
 } from '@/domain/rules';
 import {
-  breakerForFrame,
   type Frame,
   type Match,
   type Player,
 } from '@/domain/types';
+import {
+  activeSlotFromMatch,
+  type MatchEvent,
+} from '@/domain/events';
+import {
+  appendEvent,
+  createMatch,
+  findInProgress,
+  loadInProgressFull,
+  loadMatchFull,
+} from '@/db/matches';
 
 interface NewMatchInput {
   players: [Player, Player];
@@ -22,18 +31,24 @@ interface NewMatchInput {
 interface MatchState {
   current: Match | null;
   activeSlot: 0 | 1;
+  /** All events loaded for the current match (kept in memory for fast replay). */
+  events: MatchEvent[];
+  /** True once a hydration attempt at boot has completed. */
+  hydrated: boolean;
 
-  // Setup
-  startMatch: (input: NewMatchInput) => void;
+  // Lifecycle
+  hydrateFromDB: () => Promise<void>;
+  startMatch: (input: NewMatchInput) => Promise<void>;
+  resumeMatch: (matchId: string) => Promise<void>;
 
-  // Scoring actions
+  // Scoring actions (each persists to DB)
   setActiveSlot: (slot: 0 | 1) => void;
-  pocketBall: (ball: number) => void;
-  unpocketBall: (ball: number) => void;
-  undoLast: () => void;
-  nextFrame: () => void;
-  endMatch: () => Match | null;
-  abandonMatch: () => void;
+  pocketBall: (ball: number) => Promise<void>;
+  unpocketBall: (ball: number) => Promise<void>;
+  undoLast: () => Promise<void>;
+  nextFrame: () => Promise<void>;
+  endMatch: () => Promise<Match | null>;
+  abandonMatch: () => Promise<void>;
 
   // Selectors
   currentFrame: () => Frame | null;
@@ -45,123 +60,143 @@ interface MatchState {
   winnerSlot: () => 0 | 1 | null;
 }
 
-const newFrame = (index: number, breakerSlot: 0 | 1): Frame => ({
-  index,
-  startedAt: Date.now(),
-  events: [],
-  breakerSlot,
-});
-
 export const useMatchStore = create<MatchState>((set, get) => ({
   current: null,
   activeSlot: 0,
+  events: [],
+  hydrated: false,
 
-  startMatch: ({ players, raceTo, initialBreakerSlot }) => {
-    const now = Date.now();
+  /**
+   * Boot-time hydration: if an in-progress match exists in the DB, load and
+   * replay it so the user can resume. Otherwise leave current=null.
+   */
+  hydrateFromDB: async () => {
+    if (get().hydrated) return;
+    try {
+      const match = await loadInProgressFull();
+      if (match) {
+        set({
+          current: match,
+          activeSlot: activeSlotFromMatch(match),
+          events: [], // not strictly needed; we never read these without reloading
+        });
+      }
+    } finally {
+      set({ hydrated: true });
+    }
+  },
+
+  startMatch: async ({ players, raceTo, initialBreakerSlot }) => {
+    // Safety: if a stale in-progress match exists in the DB (e.g. from a
+    // prior crash that the user dismissed by ignoring the resume banner),
+    // mark it abandoned before starting a new one so the schema invariant
+    // "at most one in-progress match" holds.
+    const stale = await findInProgress();
+    if (stale) {
+      await appendEvent(stale.id, { kind: 'abandon' });
+    }
+    const { id } = await createMatch({
+      players,
+      raceTo,
+      initialBreakerSlot,
+    });
+    // Load the just-created match through the same replay path used everywhere
+    // else, so initial state is constructed identically to a resume.
+    const fresh = await loadMatchFull(id);
+    if (fresh) {
+      set({
+        current: fresh,
+        events: [],
+        activeSlot: activeSlotFromMatch(fresh),
+      });
+    }
+  },
+
+  resumeMatch: async (matchId) => {
+    const match = await loadMatchFull(matchId);
+    if (!match) return;
     set({
-      current: {
-        id: `m_${now}`,
-        players,
-        raceTo,
-        initialBreakerSlot,
-        startedAt: now,
-        status: 'in_progress',
-        frames: [newFrame(0, initialBreakerSlot)],
-      },
-      activeSlot: initialBreakerSlot,
+      current: match,
+      activeSlot: activeSlotFromMatch(match),
+      events: [],
     });
   },
 
   setActiveSlot: (slot) => set({ activeSlot: slot }),
 
-  pocketBall: (ball) => {
+  pocketBall: async (ball) => {
     const { current, activeSlot } = get();
     if (!current) return;
     const frame = current.frames[current.frames.length - 1];
-    if (frame.events.some((e) => e.ball === ball)) return;
-    const event: PocketEvent = { ball, playerSlot: activeSlot, at: Date.now() };
-    const updatedFrame: Frame = { ...frame, events: [...frame.events, event] };
-    set({
-      current: {
-        ...current,
-        frames: [...current.frames.slice(0, -1), updatedFrame],
-      },
+    if (frame.events.some((e) => e.ball === ball)) return; // already pocketed
+    const { match } = await appendEvent(current.id, {
+      kind: 'pocket',
+      frameIndex: frame.index,
+      ballNumber: ball,
+      shooterSlot: activeSlot,
     });
+    applyFresh(set, get, match);
   },
 
-  unpocketBall: (ball) => {
+  unpocketBall: async (ball) => {
     const { current } = get();
     if (!current) return;
     const frame = current.frames[current.frames.length - 1];
-    const updatedFrame: Frame = {
-      ...frame,
-      events: frame.events.filter((e) => e.ball !== ball),
-    };
-    set({
-      current: {
-        ...current,
-        frames: [...current.frames.slice(0, -1), updatedFrame],
-      },
+    if (!frame.events.some((e) => e.ball === ball)) return;
+    const { match } = await appendEvent(current.id, {
+      kind: 'unpocket',
+      frameIndex: frame.index,
+      ballNumber: ball,
     });
+    applyFresh(set, get, match);
   },
 
-  undoLast: () => {
+  undoLast: async () => {
     const { current } = get();
     if (!current) return;
     const frame = current.frames[current.frames.length - 1];
-    if (frame.events.length === 0) {
-      if (current.frames.length > 1) {
-        set({
-          current: { ...current, frames: current.frames.slice(0, -1) },
-        });
-      }
-      return;
-    }
-    const updatedFrame: Frame = {
-      ...frame,
-      events: frame.events.slice(0, -1),
-    };
-    set({
-      current: {
-        ...current,
-        frames: [...current.frames.slice(0, -1), updatedFrame],
-      },
+    // Only undo within the current frame. Crossing back across a frame
+    // boundary would require an undo_frame_end event; not in MVP.
+    if (frame.events.length === 0) return;
+    const last = frame.events[frame.events.length - 1];
+    const { match } = await appendEvent(current.id, {
+      kind: 'unpocket',
+      frameIndex: frame.index,
+      ballNumber: last.ball,
     });
+    applyFresh(set, get, match);
   },
 
-  nextFrame: () => {
+  nextFrame: async () => {
     const { current } = get();
     if (!current) return;
-    const frames = [...current.frames];
-    const last = frames[frames.length - 1];
-    if (!isFrameComplete(last.events)) return;
-    last.endedAt = Date.now();
-    frames[frames.length - 1] = last;
-    const nextIndex = frames.length;
-    const nextBreaker = breakerForFrame(current.initialBreakerSlot, nextIndex);
-    frames.push(newFrame(nextIndex, nextBreaker));
-    set({
-      current: { ...current, frames },
-      activeSlot: nextBreaker, // breaker starts as the active shooter
+    const frame = current.frames[current.frames.length - 1];
+    if (!isFrameComplete(frame.events)) return;
+    const { match } = await appendEvent(current.id, {
+      kind: 'frame_end',
+      frameIndex: frame.index,
     });
+    applyFresh(set, get, match);
   },
 
-  endMatch: () => {
+  endMatch: async () => {
     const { current } = get();
     if (!current) return null;
-    const totals = get().matchTotals();
-    const winner = matchWinner(totals, current.raceTo);
-    const finished: Match = {
-      ...current,
-      endedAt: Date.now(),
-      status: 'completed',
-      winnerSlot: winner ?? undefined,
-    };
-    set({ current: null });
-    return finished;
+    const { match } = await appendEvent(current.id, { kind: 'match_end' });
+    // Clear in-memory match so navigation away from scoring doesn't show stale data.
+    set({ current: null, events: [], activeSlot: 0 });
+    return match;
   },
 
-  abandonMatch: () => set({ current: null }),
+  abandonMatch: async () => {
+    const { current } = get();
+    if (!current) {
+      set({ current: null, events: [], activeSlot: 0 });
+      return;
+    }
+    await appendEvent(current.id, { kind: 'abandon' });
+    set({ current: null, events: [], activeSlot: 0 });
+  },
 
   currentFrame: () => {
     const { current } = get();
@@ -215,4 +250,41 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   },
 }));
 
+/**
+ * Apply a freshly-replayed Match (returned from appendEvent) into the store.
+ *
+ * activeSlot rules:
+ *  - If the frame just advanced (more frames than before), set active to the
+ *    new frame's breaker.
+ *  - Otherwise preserve the user's current selection. Tapping a ball does
+ *    not change who's shooting; the user does that explicitly via the card
+ *    tap.
+ */
+function applyFresh(
+  set: (partial: Partial<MatchState>) => void,
+  get: () => MatchState,
+  fresh: Match | null
+) {
+  if (!fresh) return;
+  const prev = get();
+  if (!prev.current) {
+    set({ current: fresh, activeSlot: activeSlotFromMatch(fresh) });
+    return;
+  }
+  const prevFrames = prev.current.frames.length;
+  const newFrames = fresh.frames.length;
+  let activeSlot = prev.activeSlot;
+  if (newFrames > prevFrames) {
+    const newFrame = fresh.frames[fresh.frames.length - 1];
+    activeSlot = newFrame.breakerSlot;
+  }
+  set({ current: fresh, activeSlot });
+}
+
 export { ballValue };
+
+// Re-export Player type for backwards-compat consumers.
+export type { Player };
+
+// Used by Home banner to show an at-a-glance label without loading events.
+export { findInProgress } from '@/db/matches';

@@ -38,6 +38,7 @@ export default function Scoring() {
     if (winnerSlot !== null && !askedFinish && current) {
       setAskedFinish(true);
       const name = current.players[winnerSlot].firstName;
+      const finishedMatchId = current.id;
       Alert.alert(
         `${name} reached ${current.raceTo}`,
         'End the match or keep shooting?',
@@ -46,9 +47,9 @@ export default function Scoring() {
           {
             text: 'End Match',
             style: 'destructive',
-            onPress: () => {
-              endMatch();
-              router.replace('/match/summary');
+            onPress: async () => {
+              await endMatch();
+              router.replace(`/match/summary?id=${finishedMatchId}`);
             },
           },
         ]
@@ -110,6 +111,7 @@ export default function Scoring() {
       `${playerFullName(current.players[0])}: ${p1Score}`,
       `${playerFullName(current.players[1])}: ${p2Score}`,
     ];
+    const finishedMatchId = current.id;
     Alert.alert(
       'End Match?',
       `Final score:\n${lines.join('\n')}`,
@@ -118,9 +120,9 @@ export default function Scoring() {
         {
           text: 'End Match',
           style: 'destructive',
-          onPress: () => {
-            endMatch();
-            router.replace('/match/summary');
+          onPress: async () => {
+            await endMatch();
+            router.replace(`/match/summary?id=${finishedMatchId}`);
           },
         },
       ]
@@ -137,8 +139,8 @@ export default function Scoring() {
         {
           text: 'Abandon',
           style: 'destructive',
-          onPress: () => {
-            abandonMatch();
+          onPress: async () => {
+            await abandonMatch();
             router.replace('/');
           },
         },

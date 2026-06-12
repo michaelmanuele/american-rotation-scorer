@@ -47,8 +47,8 @@ export default function NewMatch() {
       [
         {
           text: `${loserName} breaks`,
-          onPress: () => {
-            startMatch({
+          onPress: async () => {
+            await startMatch({
               players,
               raceTo: target,
               initialBreakerSlot: tossLoser,
@@ -60,8 +60,8 @@ export default function NewMatch() {
           text: `${winnerName} breaks`,
           style: 'default',
           isPreferred: true,
-          onPress: () => {
-            startMatch({
+          onPress: async () => {
+            await startMatch({
               players,
               raceTo: target,
               initialBreakerSlot: tossWinner,
