@@ -34,7 +34,8 @@ A native iOS + Android scoring app for **American Rotation** pool.
 - [ ] Player roster (add/edit: first, last, optional phone)
 - [ ] New match setup (pick 2 players, set race target, coin toss)
 - [ ] Scoring screen:
-  - [ ] Active-player toggle (clear visual indicator)
+  - [ ] Two player cards (MATCH + FRAME totals, initials avatar)
+  - [ ] **Tap a player's initials avatar to make them the active shooter** (avatar shows colored when active, neutral when inactive)
   - [ ] Ball grid 1–15 with realistic numbered pool balls (solids + stripes)
   - [ ] Tap ball → credits active player; ball colors to player (orange/green)
   - [ ] Tap pocketed ball → un-pocket (per-ball undo)
