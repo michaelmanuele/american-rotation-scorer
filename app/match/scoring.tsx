@@ -28,11 +28,12 @@ export default function Scoring() {
   const frameComplete = useMatchStore((s) => s.isCurrentFrameComplete());
   const winnerSlot = useMatchStore((s) => s.winnerSlot());
   const endMatch = useMatchStore((s) => s.endMatch);
+  const abandonMatch = useMatchStore((s) => s.abandonMatch);
   const currentBreakerSlot = useMatchStore((s) => s.currentBreakerSlot());
 
   const [askedFinish, setAskedFinish] = useState(false);
 
-  // Auto-detect race-to completion
+  // Auto-detect race-to completion (first time a player crosses target)
   useEffect(() => {
     if (winnerSlot !== null && !askedFinish && current) {
       setAskedFinish(true);
@@ -77,15 +78,14 @@ export default function Scoring() {
     }
   };
 
-  // Stable layout: top slot is whoever broke FIRST (won the coin toss / was confirmed).
+  // Stable layout: top slot is whoever broke the first frame.
   // Only the BREAKING pill moves between cards as the breaker alternates each frame.
   const topSlot: 0 | 1 = current.initialBreakerSlot;
   const bottomSlot: 0 | 1 = topSlot === 0 ? 1 : 0;
 
-  // Confirm-next-frame breaker prompt
   const onNextFrame = () => {
     if (!frameComplete) return;
-    const nextIndex = current.frames.length; // 0-based, so this is the upcoming frame index
+    const nextIndex = current.frames.length;
     const nextBreaker = breakerForFrame(current.initialBreakerSlot, nextIndex);
     const nextBreakerName = playerFullName(current.players[nextBreaker]);
     Alert.alert(
@@ -103,14 +103,73 @@ export default function Scoring() {
     );
   };
 
+  // End-match confirmation (callable any time, including after "Continue Shooting")
+  const onEndMatch = () => {
+    const [p1Score, p2Score] = matchTotals;
+    const lines: string[] = [
+      `${playerFullName(current.players[0])}: ${p1Score}`,
+      `${playerFullName(current.players[1])}: ${p2Score}`,
+    ];
+    Alert.alert(
+      'End Match?',
+      `Final score:\n${lines.join('\n')}`,
+      [
+        { text: 'Keep Shooting', style: 'cancel' },
+        {
+          text: 'End Match',
+          style: 'destructive',
+          onPress: () => {
+            endMatch();
+            router.replace('/match/summary');
+          },
+        },
+      ]
+    );
+  };
+
+  // Abandon (no save) — long-press on Back
+  const onAbandon = () => {
+    Alert.alert(
+      'Abandon Match?',
+      'This match will be discarded without saving.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Abandon',
+          style: 'destructive',
+          onPress: () => {
+            abandonMatch();
+            router.replace('/');
+          },
+        },
+      ]
+    );
+  };
+
+  // Show End Match chip in header once anyone has reached the race target.
+  const showEndChip = winnerSlot !== null;
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* Header strip */}
       <View style={styles.headerRow}>
-        <Pressable onPress={undoLast} style={styles.headerBtn}>
+        <Pressable
+          onPress={undoLast}
+          onLongPress={onAbandon}
+          style={styles.headerBtn}
+        >
           <Text style={styles.headerBtnText}>← Back</Text>
         </Pressable>
-        <Text style={styles.headerCenter}>RACE TO {current.raceTo}</Text>
+
+        <View style={styles.headerCenterWrap}>
+          <Text style={styles.headerCenter}>RACE TO {current.raceTo}</Text>
+          {showEndChip && (
+            <Pressable onPress={onEndMatch} style={styles.endChip}>
+              <Text style={styles.endChipText}>END MATCH</Text>
+            </Pressable>
+          )}
+        </View>
+
         <Pressable
           onPress={onNextFrame}
           disabled={!frameComplete}
@@ -159,6 +218,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 8,
+    gap: 8,
   },
   headerBtn: {
     backgroundColor: colors.surface,
@@ -168,10 +228,27 @@ const styles = StyleSheet.create({
   },
   headerBtnRight: { backgroundColor: colors.success },
   headerBtnText: { color: colors.textPrimary, fontWeight: '700' },
+  headerCenterWrap: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
   headerCenter: {
     color: colors.textSecondary,
     letterSpacing: 2,
     fontWeight: '700',
+  },
+  endChip: {
+    backgroundColor: colors.danger,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  endChipText: {
+    color: 'white',
+    fontWeight: '800',
+    fontSize: 11,
+    letterSpacing: 1.5,
   },
   frameLabel: {
     color: colors.textTertiary,
