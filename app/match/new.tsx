@@ -10,44 +10,31 @@ import {
 } from 'react-native';
 import { useMatchStore } from '@/store/matchStore';
 import { colors } from '@/theme/colors';
-import { playerFullName, type Player } from '@/domain/types';
+import { playerFullName, playerInitials, type Player } from '@/domain/types';
+import { PlayerPicker } from '@/components/PlayerPicker';
 
 /**
- * Minimal new-match setup. After tapping Start:
- * 1. Builds two ephemeral Player objects.
- * 2. Runs a virtual coin toss for the first break.
- * 3. Prompts the user to confirm the breaker (or pick the other player).
- * 4. Starts the match with the confirmed initial breaker.
+ * New-match setup using the roster-backed PlayerPicker.
+ *
+ * Flow:
+ * 1. Tap a slot → PlayerPicker opens (search/add inline).
+ * 2. Both slots filled + race target set → Start enabled.
+ * 3. Virtual coin toss + confirm-or-pass dialog → match starts.
  */
 export default function NewMatch() {
   const startMatch = useMatchStore((s) => s.startMatch);
-  const [p1First, setP1First] = useState('');
-  const [p1Last, setP1Last] = useState('');
-  const [p2First, setP2First] = useState('');
-  const [p2Last, setP2Last] = useState('');
+
+  const [p1, setP1] = useState<Player | null>(null);
+  const [p2, setP2] = useState<Player | null>(null);
   const [raceTo, setRaceTo] = useState('100');
 
-  const canStart =
-    p1First.trim().length > 0 &&
-    p2First.trim().length > 0 &&
-    Number.parseInt(raceTo, 10) > 0;
+  const [pickerSlot, setPickerSlot] = useState<0 | 1 | null>(null);
+
+  const canStart = !!p1 && !!p2 && Number.parseInt(raceTo, 10) > 0;
 
   const onStart = () => {
-    const now = Date.now();
-    const players: [Player, Player] = [
-      {
-        id: `p_${now}_1`,
-        firstName: p1First.trim(),
-        lastName: p1Last.trim(),
-        createdAt: now,
-      },
-      {
-        id: `p_${now}_2`,
-        firstName: p2First.trim(),
-        lastName: p2Last.trim(),
-        createdAt: now,
-      },
-    ];
+    if (!p1 || !p2) return;
+    const players: [Player, Player] = [p1, p2];
     const target = Number.parseInt(raceTo, 10);
     const tossWinner: 0 | 1 = Math.random() < 0.5 ? 0 : 1;
     const tossLoser: 0 | 1 = tossWinner === 0 ? 1 : 0;
@@ -86,22 +73,24 @@ export default function NewMatch() {
     );
   };
 
+  const otherSlotId =
+    pickerSlot === 0 ? p2?.id : pickerSlot === 1 ? p1?.id : undefined;
+
   return (
     <View style={styles.container}>
-      <Field
+      <PlayerSlot
         label="Player 1"
-        firstName={p1First}
-        lastName={p1Last}
-        onFirst={setP1First}
-        onLast={setP1Last}
+        player={p1}
+        onPress={() => setPickerSlot(0)}
+        onClear={() => setP1(null)}
       />
-      <Field
+      <PlayerSlot
         label="Player 2"
-        firstName={p2First}
-        lastName={p2Last}
-        onFirst={setP2First}
-        onLast={setP2Last}
+        player={p2}
+        onPress={() => setPickerSlot(1)}
+        onClear={() => setP2(null)}
       />
+
       <Text style={styles.label}>Race to (points)</Text>
       <TextInput
         style={styles.input}
@@ -111,6 +100,7 @@ export default function NewMatch() {
         placeholder="100"
         placeholderTextColor={colors.textTertiary}
       />
+
       <Pressable
         onPress={onStart}
         disabled={!canStart}
@@ -122,44 +112,75 @@ export default function NewMatch() {
       >
         <Text style={styles.ctaText}>Start Match</Text>
       </Pressable>
+
+      <PlayerPicker
+        visible={pickerSlot !== null}
+        title={pickerSlot === 0 ? 'Choose Player 1' : 'Choose Player 2'}
+        disabledPlayerIds={otherSlotId ? [otherSlotId] : []}
+        onClose={() => setPickerSlot(null)}
+        onPick={(player) => {
+          if (pickerSlot === 0) setP1(player);
+          else if (pickerSlot === 1) setP2(player);
+          setPickerSlot(null);
+        }}
+      />
     </View>
   );
 }
 
-function Field({
+function PlayerSlot({
   label,
-  firstName,
-  lastName,
-  onFirst,
-  onLast,
+  player,
+  onPress,
+  onClear,
 }: {
   label: string;
-  firstName: string;
-  lastName: string;
-  onFirst: (v: string) => void;
-  onLast: (v: string) => void;
+  player: Player | null;
+  onPress: () => void;
+  onClear: () => void;
 }) {
   return (
     <View style={{ marginBottom: 12 }}>
       <Text style={styles.label}>{label}</Text>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <TextInput
-          style={[styles.input, { flex: 1 }]}
-          placeholder="First"
-          placeholderTextColor={colors.textTertiary}
-          value={firstName}
-          onChangeText={onFirst}
-          autoCapitalize="words"
-        />
-        <TextInput
-          style={[styles.input, { flex: 1 }]}
-          placeholder="Last"
-          placeholderTextColor={colors.textTertiary}
-          value={lastName}
-          onChangeText={onLast}
-          autoCapitalize="words"
-        />
-      </View>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.slot,
+          pressed && { opacity: 0.85 },
+        ]}
+      >
+        {player ? (
+          <>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{playerInitials(player)}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.slotName}>{playerFullName(player)}</Text>
+              <Text style={styles.slotSub}>Tap to change</Text>
+            </View>
+            <Pressable
+              hitSlop={12}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onClear();
+              }}
+            >
+              <Text style={styles.clear}>✕</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <View style={[styles.avatar, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.avatarText, { color: colors.textSecondary }]}>
+                ?
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.slotPlaceholder}>Tap to choose…</Text>
+            </View>
+          </>
+        )}
+      </Pressable>
     </View>
   );
 }
@@ -178,6 +199,35 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
+  },
+  slot: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.inactive,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: { color: 'white', fontWeight: '800', fontSize: 16 },
+  slotName: { color: colors.textPrimary, fontSize: 17, fontWeight: '700' },
+  slotSub: { color: colors.textTertiary, fontSize: 12, marginTop: 2 },
+  slotPlaceholder: {
+    color: colors.textSecondary,
+    fontSize: 16,
+    fontStyle: 'italic',
+  },
+  clear: {
+    color: colors.textSecondary,
+    fontSize: 20,
+    paddingHorizontal: 6,
   },
   cta: {
     backgroundColor: colors.primary,
