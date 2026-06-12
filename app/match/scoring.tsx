@@ -77,8 +77,9 @@ export default function Scoring() {
     }
   };
 
-  // Order: current frame's breaker on top
-  const topSlot: 0 | 1 = currentBreakerSlot ?? 0;
+  // Stable layout: top slot is whoever broke FIRST (won the coin toss / was confirmed).
+  // Only the BREAKING pill moves between cards as the breaker alternates each frame.
+  const topSlot: 0 | 1 = current.initialBreakerSlot;
   const bottomSlot: 0 | 1 = topSlot === 0 ? 1 : 0;
 
   // Confirm-next-frame breaker prompt
@@ -125,14 +126,13 @@ export default function Scoring() {
 
       <Text style={styles.frameLabel}>FRAME {current.frames.length}</Text>
 
-      {/* Top = current frame's breaker */}
       <PlayerCard
         player={current.players[topSlot]}
         slot={topSlot}
         active={activeSlot === topSlot}
         matchScore={matchTotals[topSlot]}
         frameScore={frameTotals[topSlot]}
-        isBreaker
+        isBreaker={currentBreakerSlot === topSlot}
         onPress={() => setActiveSlot(topSlot)}
       />
       <PlayerCard
@@ -141,6 +141,7 @@ export default function Scoring() {
         active={activeSlot === bottomSlot}
         matchScore={matchTotals[bottomSlot]}
         frameScore={frameTotals[bottomSlot]}
+        isBreaker={currentBreakerSlot === bottomSlot}
         onPress={() => setActiveSlot(bottomSlot)}
       />
 
