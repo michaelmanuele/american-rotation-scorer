@@ -6,12 +6,17 @@ import {
   playerFramePoints,
   type PocketEvent,
 } from '@/domain/rules';
-import type { Frame, Match, Player } from '@/domain/types';
+import {
+  breakerForFrame,
+  type Frame,
+  type Match,
+  type Player,
+} from '@/domain/types';
 
 interface NewMatchInput {
   players: [Player, Player];
   raceTo: number;
-  breakerSlot: 0 | 1;
+  initialBreakerSlot: 0 | 1;
 }
 
 interface MatchState {
@@ -32,6 +37,7 @@ interface MatchState {
 
   // Selectors
   currentFrame: () => Frame | null;
+  currentBreakerSlot: () => 0 | 1 | null;
   matchTotals: () => [number, number];
   frameTotals: () => [number, number];
   pocketedBy: () => Record<number, 0 | 1 | undefined>;
@@ -39,29 +45,30 @@ interface MatchState {
   winnerSlot: () => 0 | 1 | null;
 }
 
-const newFrame = (index: number): Frame => ({
+const newFrame = (index: number, breakerSlot: 0 | 1): Frame => ({
   index,
   startedAt: Date.now(),
   events: [],
+  breakerSlot,
 });
 
 export const useMatchStore = create<MatchState>((set, get) => ({
   current: null,
   activeSlot: 0,
 
-  startMatch: ({ players, raceTo, breakerSlot }) => {
+  startMatch: ({ players, raceTo, initialBreakerSlot }) => {
     const now = Date.now();
     set({
       current: {
         id: `m_${now}`,
         players,
         raceTo,
-        breakerSlot,
+        initialBreakerSlot,
         startedAt: now,
         status: 'in_progress',
-        frames: [newFrame(0)],
+        frames: [newFrame(0, initialBreakerSlot)],
       },
-      activeSlot: breakerSlot,
+      activeSlot: initialBreakerSlot,
     });
   },
 
@@ -71,7 +78,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     const { current, activeSlot } = get();
     if (!current) return;
     const frame = current.frames[current.frames.length - 1];
-    if (frame.events.some((e) => e.ball === ball)) return; // already pocketed
+    if (frame.events.some((e) => e.ball === ball)) return;
     const event: PocketEvent = { ball, playerSlot: activeSlot, at: Date.now() };
     const updatedFrame: Frame = { ...frame, events: [...frame.events, event] };
     set({
@@ -103,7 +110,6 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     if (!current) return;
     const frame = current.frames[current.frames.length - 1];
     if (frame.events.length === 0) {
-      // Optionally collapse to previous frame
       if (current.frames.length > 1) {
         set({
           current: { ...current, frames: current.frames.slice(0, -1) },
@@ -131,8 +137,13 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     if (!isFrameComplete(last.events)) return;
     last.endedAt = Date.now();
     frames[frames.length - 1] = last;
-    frames.push(newFrame(frames.length));
-    set({ current: { ...current, frames } });
+    const nextIndex = frames.length;
+    const nextBreaker = breakerForFrame(current.initialBreakerSlot, nextIndex);
+    frames.push(newFrame(nextIndex, nextBreaker));
+    set({
+      current: { ...current, frames },
+      activeSlot: nextBreaker, // breaker starts as the active shooter
+    });
   },
 
   endMatch: () => {
@@ -156,6 +167,11 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     const { current } = get();
     if (!current) return null;
     return current.frames[current.frames.length - 1] ?? null;
+  },
+
+  currentBreakerSlot: () => {
+    const frame = get().currentFrame();
+    return frame?.breakerSlot ?? null;
   },
 
   matchTotals: () => {
@@ -199,5 +215,4 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   },
 }));
 
-// Re-export for convenience
 export { ballValue };

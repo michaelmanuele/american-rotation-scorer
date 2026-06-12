@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { router } from 'expo-router';
 import { useMatchStore } from '@/store/matchStore';
 import { PlayerCard } from '@/components/PlayerCard';
 import { BallGrid } from '@/components/BallGrid';
 import { colors } from '@/theme/colors';
+import { breakerForFrame, playerFullName } from '@/domain/types';
 
 export default function Scoring() {
   const current = useMatchStore((s) => s.current);
@@ -20,9 +28,11 @@ export default function Scoring() {
   const frameComplete = useMatchStore((s) => s.isCurrentFrameComplete());
   const winnerSlot = useMatchStore((s) => s.winnerSlot());
   const endMatch = useMatchStore((s) => s.endMatch);
+  const currentBreakerSlot = useMatchStore((s) => s.currentBreakerSlot());
 
   const [askedFinish, setAskedFinish] = useState(false);
 
+  // Auto-detect race-to completion
   useEffect(() => {
     if (winnerSlot !== null && !askedFinish && current) {
       setAskedFinish(true);
@@ -67,6 +77,31 @@ export default function Scoring() {
     }
   };
 
+  // Order: current frame's breaker on top
+  const topSlot: 0 | 1 = currentBreakerSlot ?? 0;
+  const bottomSlot: 0 | 1 = topSlot === 0 ? 1 : 0;
+
+  // Confirm-next-frame breaker prompt
+  const onNextFrame = () => {
+    if (!frameComplete) return;
+    const nextIndex = current.frames.length; // 0-based, so this is the upcoming frame index
+    const nextBreaker = breakerForFrame(current.initialBreakerSlot, nextIndex);
+    const nextBreakerName = playerFullName(current.players[nextBreaker]);
+    Alert.alert(
+      'Next Frame',
+      `${nextBreakerName} breaks the next frame.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Start Frame',
+          style: 'default',
+          isPreferred: true,
+          onPress: () => nextFrame(),
+        },
+      ]
+    );
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* Header strip */}
@@ -76,7 +111,7 @@ export default function Scoring() {
         </Pressable>
         <Text style={styles.headerCenter}>RACE TO {current.raceTo}</Text>
         <Pressable
-          onPress={nextFrame}
+          onPress={onNextFrame}
           disabled={!frameComplete}
           style={[
             styles.headerBtn,
@@ -88,28 +123,30 @@ export default function Scoring() {
         </Pressable>
       </View>
 
-      <Text style={styles.frameLabel}>
-        FRAME {current.frames.length}
-      </Text>
+      <Text style={styles.frameLabel}>FRAME {current.frames.length}</Text>
 
+      {/* Top = current frame's breaker */}
       <PlayerCard
-        player={current.players[0]}
-        slot={0}
-        active={activeSlot === 0}
-        matchScore={matchTotals[0]}
-        frameScore={frameTotals[0]}
-        onPress={() => setActiveSlot(0)}
+        player={current.players[topSlot]}
+        slot={topSlot}
+        active={activeSlot === topSlot}
+        matchScore={matchTotals[topSlot]}
+        frameScore={frameTotals[topSlot]}
+        isBreaker
+        onPress={() => setActiveSlot(topSlot)}
       />
       <PlayerCard
-        player={current.players[1]}
-        slot={1}
-        active={activeSlot === 1}
-        matchScore={matchTotals[1]}
-        frameScore={frameTotals[1]}
-        onPress={() => setActiveSlot(1)}
+        player={current.players[bottomSlot]}
+        slot={bottomSlot}
+        active={activeSlot === bottomSlot}
+        matchScore={matchTotals[bottomSlot]}
+        frameScore={frameTotals[bottomSlot]}
+        onPress={() => setActiveSlot(bottomSlot)}
       />
 
-      <BallGrid pocketedBy={pocketedBy} onTapBall={onTapBall} />
+      <View style={{ marginTop: 14 }}>
+        <BallGrid pocketedBy={pocketedBy} onTapBall={onTapBall} />
+      </View>
     </ScrollView>
   );
 }

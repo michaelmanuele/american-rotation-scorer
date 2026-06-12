@@ -13,6 +13,7 @@ export interface Frame {
   startedAt: number;
   endedAt?: number;
   events: PocketEvent[];    // ordered pocket events
+  breakerSlot: 0 | 1;       // who broke this frame (alternating breaks)
 }
 
 export type MatchStatus = 'in_progress' | 'completed' | 'abandoned';
@@ -21,12 +22,21 @@ export interface Match {
   id: string;
   players: [Player, Player];
   raceTo: number;
-  breakerSlot: 0 | 1;
+  /** Who broke the first frame (the agreed-upon initial breaker). */
+  initialBreakerSlot: 0 | 1;
   startedAt: number;
   endedAt?: number;
   status: MatchStatus;
   frames: Frame[];
   winnerSlot?: 0 | 1;
+}
+
+/** Alternating-break rotation: the breaker switches each frame. */
+export function breakerForFrame(
+  initialBreakerSlot: 0 | 1,
+  frameIndex: number
+): 0 | 1 {
+  return ((initialBreakerSlot + frameIndex) % 2) as 0 | 1;
 }
 
 export function playerInitials(p: Player): string {

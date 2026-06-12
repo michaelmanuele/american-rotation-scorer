@@ -9,13 +9,14 @@ interface Props {
   active: boolean;
   matchScore: number;
   frameScore: number;
-  onPress: () => void;       // tap to make this player the active shooter
+  isBreaker?: boolean;          // ⚡ marker — current frame breaker
+  onPress: () => void;          // tap anywhere on card to switch active shooter
 }
 
 /**
- * Mirrors the TotalPool player card pattern:
- * - Tap the initials avatar to switch turn.
- * - Avatar is colored when active, neutral when inactive.
+ * Player card. Tap anywhere on the card to make this player the active shooter.
+ * - Avatar is filled with player color when active, neutral gray when inactive.
+ * - Breaker indicator (small pill) shows when this player is breaking the current frame.
  */
 export function PlayerCard({
   player,
@@ -23,6 +24,7 @@ export function PlayerCard({
   active,
   matchScore,
   frameScore,
+  isBreaker,
   onPress,
 }: Props) {
   const accent = playerColor(slot);
@@ -30,27 +32,32 @@ export function PlayerCard({
   const numColor = active ? colors.textPrimary : colors.textSecondary;
 
   return (
-    <View style={styles.card}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Set ${playerFullName(player)} as active shooter`}
+      style={({ pressed }) => [
+        styles.card,
+        active && { borderColor: accent, borderWidth: 2 },
+        pressed && { opacity: 0.9 },
+      ]}
+    >
       <View style={styles.row}>
-        <Pressable
-          onPress={onPress}
-          hitSlop={12}
-          style={({ pressed }) => [
-            styles.avatar,
-            { backgroundColor: avatarBg },
-            pressed && { opacity: 0.85 },
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel={`Set ${playerFullName(player)} as active shooter`}
-        >
+        <View style={[styles.avatar, { backgroundColor: avatarBg }]}>
           <Text style={styles.initials}>{playerInitials(player)}</Text>
-        </Pressable>
-        <Text
-          style={styles.name}
-          numberOfLines={1}
-        >
-          {playerFullName(player).toUpperCase()}
-        </Text>
+        </View>
+        <View style={{ flex: 1, flexShrink: 1 }}>
+          <Text style={styles.name} numberOfLines={1}>
+            {playerFullName(player).toUpperCase()}
+          </Text>
+          {isBreaker && (
+            <View style={[styles.breakerPill, { borderColor: accent }]}>
+              <Text style={[styles.breakerText, { color: accent }]}>
+                BREAKING
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <View style={styles.scores}>
@@ -64,7 +71,7 @@ export function PlayerCard({
           <Text style={styles.scoreLabel}>FRAME</Text>
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -74,6 +81,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginVertical: 6,
+    borderColor: 'transparent',
+    borderWidth: 2,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: {
@@ -88,7 +97,19 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontWeight: '800',
     fontSize: 22,
-    flexShrink: 1,
+  },
+  breakerPill: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  breakerText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
   },
   scores: { flexDirection: 'row', marginTop: 12 },
   scoreCol: { flex: 1, alignItems: 'center' },

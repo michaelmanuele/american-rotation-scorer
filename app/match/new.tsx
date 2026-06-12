@@ -1,13 +1,23 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useMatchStore } from '@/store/matchStore';
 import { colors } from '@/theme/colors';
-import type { Player } from '@/domain/types';
+import { playerFullName, type Player } from '@/domain/types';
 
 /**
- * Minimal new-match setup screen.
- * TODO: replace inline player entry with roster picker (M1).
+ * Minimal new-match setup. After tapping Start:
+ * 1. Builds two ephemeral Player objects.
+ * 2. Runs a virtual coin toss for the first break.
+ * 3. Prompts the user to confirm the breaker (or pick the other player).
+ * 4. Starts the match with the confirmed initial breaker.
  */
 export default function NewMatch() {
   const startMatch = useMatchStore((s) => s.startMatch);
@@ -38,13 +48,42 @@ export default function NewMatch() {
         createdAt: now,
       },
     ];
-    const breakerSlot: 0 | 1 = Math.random() < 0.5 ? 0 : 1;
-    startMatch({
-      players,
-      raceTo: Number.parseInt(raceTo, 10),
-      breakerSlot,
-    });
-    router.replace('/match/scoring');
+    const target = Number.parseInt(raceTo, 10);
+    const tossWinner: 0 | 1 = Math.random() < 0.5 ? 0 : 1;
+    const tossLoser: 0 | 1 = tossWinner === 0 ? 1 : 0;
+    const winnerName = playerFullName(players[tossWinner]);
+    const loserName = playerFullName(players[tossLoser]);
+
+    Alert.alert(
+      'Coin Toss',
+      `${winnerName} won the toss and breaks first. Confirm, or pass the break to ${loserName}.`,
+      [
+        {
+          text: `${loserName} breaks`,
+          onPress: () => {
+            startMatch({
+              players,
+              raceTo: target,
+              initialBreakerSlot: tossLoser,
+            });
+            router.replace('/match/scoring');
+          },
+        },
+        {
+          text: `${winnerName} breaks`,
+          style: 'default',
+          isPreferred: true,
+          onPress: () => {
+            startMatch({
+              players,
+              raceTo: target,
+              initialBreakerSlot: tossWinner,
+            });
+            router.replace('/match/scoring');
+          },
+        },
+      ]
+    );
   };
 
   return (
