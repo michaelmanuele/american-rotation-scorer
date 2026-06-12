@@ -22,6 +22,8 @@ interface Props {
   onClose: () => void;
   onSave: (input: PlayerInput) => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
+  /** Fires after the modal has fully animated out. Use to chain follow-up modals. */
+  onDismiss?: () => void;
 }
 
 export function PlayerEditSheet({
@@ -32,6 +34,7 @@ export function PlayerEditSheet({
   onClose,
   onSave,
   onDelete,
+  onDismiss,
 }: Props) {
   const isEdit = !!initial;
   const [first, setFirst] = useState('');
@@ -83,6 +86,7 @@ export function PlayerEditSheet({
       transparent
       animationType="slide"
       onRequestClose={onClose}
+      onDismiss={onDismiss}
     >
       <KeyboardAvoidingView
         style={styles.backdrop}

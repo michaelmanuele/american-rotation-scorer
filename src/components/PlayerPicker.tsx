@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   FlatList,
+  InteractionManager,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -42,6 +43,10 @@ export function PlayerPicker({
 
   const [query, setQuery] = useState('');
   const [addSheet, setAddSheet] = useState(false);
+  // Holds a player created from the add-sheet that should be picked
+  // once the add-sheet finishes closing. Avoids dismissing two stacked
+  // modals in the same frame, which can leave an invisible iOS overlay.
+  const [pendingPick, setPendingPick] = useState<Player | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -168,10 +173,29 @@ export function PlayerPicker({
         visible={addSheet}
         initialFirstName={query.trim()}
         onClose={() => setAddSheet(false)}
+        onDismiss={() => {
+          // Fires AFTER the iOS modal has fully closed. Now it's safe
+          // to also close the picker and deliver the new player.
+          if (pendingPick) {
+            const p = pendingPick;
+            setPendingPick(null);
+            onPick(p);
+            onClose();
+          }
+        }}
         onSave={async (input) => {
           const created = await add(input);
-          onPick(created);
-          onClose();
+          // Stash the pick; close the edit sheet first. The picker
+          // will close in the edit sheet's onDismiss handler (iOS).
+          setPendingPick(created);
+          // Android doesn't fire Modal.onDismiss — close on next tick.
+          if (Platform.OS !== 'ios') {
+            InteractionManager.runAfterInteractions(() => {
+              onPick(created);
+              setPendingPick(null);
+              onClose();
+            });
+          }
         }}
       />
     </Modal>
