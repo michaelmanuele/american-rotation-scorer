@@ -1,6 +1,6 @@
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/theme/colors';
-import { RULES_SECTIONS } from '@/content/rules';
+import { HOW_TO_SECTIONS, RULES_SECTIONS, type RulesSection } from '@/content/rules';
 
 type Props = {
   visible: boolean;
@@ -28,12 +28,12 @@ export function RulesModal({ visible, onClose }: Props) {
     >
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>RULES</Text>
+          <Text style={styles.title}>REFERENCE</Text>
           <Pressable
             onPress={onClose}
             style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.7 }]}
             hitSlop={12}
-            accessibilityLabel="Close rules"
+            accessibilityLabel="Close reference"
           >
             <Text style={styles.closeText}>Done</Text>
           </Pressable>
@@ -44,25 +44,46 @@ export function RulesModal({ visible, onClose }: Props) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator
         >
+          <GroupHeader label="Rules" />
           {RULES_SECTIONS.map((section, sIdx) => (
-            <View
-              key={section.title}
-              style={[styles.section, sIdx > 0 && { marginTop: 24 }]}
-            >
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-              {section.bullets.map((bullet, bIdx) => (
-                <View key={bIdx} style={styles.bulletRow}>
-                  <Text style={styles.bulletDot}>•</Text>
-                  <Text style={styles.bulletText}>{bullet}</Text>
-                </View>
-              ))}
-            </View>
+            <Section key={section.title} section={section} first={sIdx === 0} />
           ))}
 
-          <Text style={styles.footer}>American Rotation — house rules summary</Text>
+          <View style={styles.divider} />
+
+          <GroupHeader label="How to Score" />
+          {HOW_TO_SECTIONS.map((section, sIdx) => (
+            <Section key={section.title} section={section} first={sIdx === 0} />
+          ))}
+
+          <Text style={styles.footer}>American Rotation — reference sheet</Text>
         </ScrollView>
       </View>
     </Modal>
+  );
+}
+
+function GroupHeader({ label }: { label: string }) {
+  return <Text style={styles.groupHeader}>{label}</Text>;
+}
+
+function Section({
+  section,
+  first,
+}: {
+  section: RulesSection;
+  first: boolean;
+}) {
+  return (
+    <View style={[styles.section, !first && { marginTop: 24 }]}>
+      <Text style={styles.sectionTitle}>{section.title}</Text>
+      {section.bullets.map((bullet, idx) => (
+        <View key={idx} style={styles.bulletRow}>
+          <Text style={styles.bulletDot}>•</Text>
+          <Text style={styles.bulletText}>{bullet}</Text>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -102,6 +123,20 @@ const styles = StyleSheet.create({
     paddingBottom: 48,
   },
   section: {},
+  groupHeader: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+    marginBottom: 14,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginTop: 32,
+    marginBottom: 28,
+  },
   sectionTitle: {
     color: colors.textPrimary,
     fontSize: 14,

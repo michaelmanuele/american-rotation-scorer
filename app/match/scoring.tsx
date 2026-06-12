@@ -173,7 +173,7 @@ export default function Scoring() {
               style={({ pressed }) => [styles.rulesChip, pressed && { opacity: 0.7 }]}
               hitSlop={6}
             >
-              <Text style={styles.rulesChipText}>RULES</Text>
+              <Text style={styles.rulesChipText}>REF</Text>
             </Pressable>
             {showEndChip && (
               <Pressable onPress={onEndMatch} style={styles.endChip}>

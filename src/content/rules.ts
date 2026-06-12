@@ -14,6 +14,8 @@ export type RulesSection = {
 };
 
 export const RULES_SECTIONS: RulesSection[] = [
+  // ---- Rules first (most common reason to open during a live match) ----
+
   {
     title: 'Rules Summary',
     bullets: [
@@ -37,6 +39,53 @@ export const RULES_SECTIONS: RulesSection[] = [
       'Cue-ball fouls only — unless you disturb an object ball that interferes with the next shot or move multiple balls.',
       'Jumping allowed with primary playing cue only (no jump cues, break cues, or alternate playing cues).',
       'Three-foul rule: player must be notified after 2 fouls (like 9-ball). On the 3rd foul, incoming player gets a free shot — ball in hand, can shoot any ball in any order, break up clusters, smash all the balls, etc. Any balls made count for the shooter. After the free shot, the shooter continues with ball in hand as if it were a normal foul.',
+    ],
+  },
+];
+
+// ---- How to use the app (rendered below the rules in the modal) ----
+export const HOW_TO_SECTIONS: RulesSection[] = [
+  {
+    title: 'Starting a Match',
+    bullets: [
+      'From the Home screen, tap New Match.',
+      'Pick Player 1 and Player 2 from the roster (add players first from the Players screen if needed).',
+      'Set the race-to total (e.g. 120 for a typical match).',
+      'Tap Start to begin scoring.',
+    ],
+  },
+  {
+    title: 'Scoring a Frame',
+    bullets: [
+      'The active (shooting) player\'s card is highlighted. Tap the other player\'s card to switch shooter before tapping a ball.',
+      'Tap a ball in the 3×5 grid to credit it to the active player. Tap the same ball again to un-pocket it.',
+      'Balls 1–10 = 1 point each. Balls 11–15 = 2 points each. 20 points per rack.',
+      'The BREAKING pill shows who is breaking the current frame. Breaks alternate automatically.',
+    ],
+  },
+  {
+    title: 'Header Controls',
+    bullets: [
+      '← Back: undoes your last action within the current frame.',
+      'Long-press ← Back: abandons the match (with confirmation).',
+      'Next Frame →: advances to the next rack once all 15 balls are pocketed. Available only when the frame is complete.',
+      'REF: opens this reference sheet without leaving the match.',
+      'END MATCH (appears when the race target is hit): tap to finalize the win and view the summary.',
+    ],
+  },
+  {
+    title: 'Resuming After a Crash or Close',
+    bullets: [
+      'If the app crashes or you close it mid-match, your scoring is safe — every action is saved as it happens.',
+      'When you reopen the app, the Home screen shows a Match in progress banner.',
+      'Tap Resume to pick up exactly where you left off, or Discard to throw the match out.',
+    ],
+  },
+  {
+    title: 'History & Players',
+    bullets: [
+      'History: see all completed matches. Tap a row to view the read-only summary. Swipe a row left to delete it.',
+      'Players: manage your roster — add, edit, or remove players here before starting a match.',
     ],
   },
 ];

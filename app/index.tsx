@@ -113,7 +113,7 @@ export default function Home() {
         style={({ pressed }) => [styles.rulesLink, pressed && { opacity: 0.6 }]}
         hitSlop={10}
       >
-        <Text style={styles.rulesLinkText}>Rules Summary</Text>
+        <Text style={styles.rulesLinkText}>Rules & How to Score</Text>
       </Pressable>
 
       <RulesModal visible={rulesOpen} onClose={() => setRulesOpen(false)} />
