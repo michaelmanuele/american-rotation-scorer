@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "American Rotation Scorer",
+    "slug": "american-rotation-scorer",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "arscorer",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B3A52"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.michaelmanuele.arscorer"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B3A52"
+      },
+      "package": "com.michaelmanuele.arscorer"
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

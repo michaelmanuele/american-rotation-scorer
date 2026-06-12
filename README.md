@@ -79,5 +79,36 @@ Inspired by TotalPool (iPadOS) — improving on:
 - Clearer active-player state
 - Correct American Rotation scoring (1 pt for 1–10, 2 pts for 11–15)
 
+## Getting Started
+
+```bash
+# On your Mac Mini
+git clone https://github.com/michaelmanuele/american-rotation-scorer.git
+cd american-rotation-scorer
+npm install
+npx expo start
+```
+
+Then press `i` for iOS Simulator, `a` for Android Emulator, or scan the QR with Expo Go on your iPhone/iPad.
+
+### Project structure
+```
+app/                  # Expo Router screens
+  _layout.tsx         # root stack
+  index.tsx           # home menu
+  match/
+    new.tsx           # match setup
+    scoring.tsx       # core scoring screen
+    summary.tsx       # post-match summary
+  history.tsx         # match history list
+  roster.tsx          # player roster
+src/
+  components/         # PoolBall, PlayerCard, BallGrid
+  domain/             # rules.ts, types.ts (pure logic)
+  store/              # matchStore.ts (Zustand)
+  theme/              # colors.ts
+assets/               # icon, splash (placeholders)
+```
+
 ## Author
 Michael Manuele
