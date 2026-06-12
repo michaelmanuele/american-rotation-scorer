@@ -61,12 +61,11 @@ export function PlayerCard({
       </View>
 
       <View style={styles.scores}>
-        <View style={styles.scoreCol}>
+        <View style={styles.scorePill}>
           <Text style={[styles.scoreNum, { color: numColor }]}>{matchScore}</Text>
           <Text style={styles.scoreLabel}>MATCH</Text>
         </View>
-        <View style={styles.divider} />
-        <View style={styles.scoreCol}>
+        <View style={styles.scorePill}>
           <Text style={[styles.scoreNum, { color: numColor }]}>{frameScore}</Text>
           <Text style={styles.scoreLabel}>FRAME</Text>
         </View>
@@ -111,18 +110,22 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.5,
   },
-  scores: { flexDirection: 'row', marginTop: 12 },
-  scoreCol: { flex: 1, alignItems: 'center' },
+  scores: { flexDirection: 'row', marginTop: 12, gap: 10 },
+  scorePill: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+  },
   scoreNum: { fontSize: 56, fontWeight: '800' },
   scoreLabel: {
     color: colors.textTertiary,
     fontSize: 12,
     letterSpacing: 2,
     marginTop: 2,
-  },
-  divider: {
-    width: 1,
-    backgroundColor: colors.border,
-    marginVertical: 8,
   },
 });
