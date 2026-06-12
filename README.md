@@ -1,46 +1,82 @@
 # American Rotation Scorer
 
-A scoring app for the game of American Rotation pool, targeting iOS and Android as native apps.
+A native iOS + Android scoring app for **American Rotation** pool.
 
 ## Status
-🚧 MVP planning — early development
+🚧 MVP spec finalized — scaffold pending
 
 ## Stack
 - **Framework**: React Native + Expo (managed workflow)
 - **Language**: TypeScript
-- **Navigation**: Expo Router (file-based)
-- **State**: Zustand (lightweight, persisted)
-- **Local storage**: expo-sqlite (or AsyncStorage for MVP)
-- **Backend (later)**: PocketBase with local-first sync
-- **Build/Distribute**: EAS Build → TestFlight + Play Internal Testing
+- **Navigation**: Expo Router
+- **State**: Zustand (persisted)
+- **Local storage**: expo-sqlite (roster + match history)
+- **Backend (post-MVP)**: PocketBase with local-first sync
+- **Distribution**: EAS Build → TestFlight + Play Internal Testing
 
-## MVP Scope (Match Scoring)
-Two-player rack-by-rack scoring following American Rotation rules:
-- 15 balls per rack, ball number = point value (1–15), 120 pts per rack
-- Race-to-X format (configurable)
-- Inning-by-inning ball pocketing
-- Foul tracking (-1 per foul, 3-foul rule)
-- Safety tracking
-- Undo last action
-- Match summary & history (local)
+## Game Rules (MVP)
+
+**Frame = 1 rack of 15 balls**
+- Balls 1–10: 1 point each
+- Balls 11–15: 2 points each
+- Frame max: 20 points
+- Frame ends when all 15 balls are pocketed
+
+**Match**
+- Race to N total cumulative points (configurable: e.g. 60, 100, 120)
+- First player to reach the race target wins
+- Coin toss determines breaker; manual override available
+- No fouls, safeties, or 3-foul rule in MVP (deferred to v2)
+
+## MVP Features
+
+### In scope
+- [ ] Player roster (add/edit: first, last, optional phone)
+- [ ] New match setup (pick 2 players, set race target, coin toss)
+- [ ] Scoring screen:
+  - [ ] Active-player toggle (clear visual indicator)
+  - [ ] Ball grid 1–15 with realistic numbered pool balls (solids + stripes)
+  - [ ] Tap ball → credits active player; ball colors to player (orange/green)
+  - [ ] Tap pocketed ball → un-pocket (per-ball undo)
+  - [ ] Back button → undo last action
+  - [ ] Next Frame (enabled when all 15 pocketed)
+  - [ ] Frame timer + match timer
+  - [ ] Auto-detect race target reached → End Match / Continue Shooting
+- [ ] Match summary: final score, match duration, per-player balls pocketed, avg pts/frame, best frame, frame count
+- [ ] Match history list (local, SQLite)
+
+### Out of scope (deferred)
+- Charts in summary
+- Fouls / safeties / 3-foul rule
+- Solo practice mode
+- Rules viewer
+- Settings (haptics, themes)
+- PocketBase cloud sync
+
+## Color & Visual Language
+- Player 1 = **orange** (`#F58634` ish)
+- Player 2 = **green** (`#34C759` ish)
+- Unpocketed = neutral gray
+- Realistic ball rendering: solids 1–8, stripes 9–15, numbered
 
 ## Roadmap
-- [ ] M0: Expo scaffold + navigation shell
-- [ ] M1: New match flow (player names, race-to)
-- [ ] M2: Scoring screen — ball grid, inning tracking, fouls/safeties
-- [ ] M3: Match complete screen + local history
-- [ ] M4: Settings (rule variants, haptics)
-- [ ] M5: EAS Build → TestFlight + Play Internal
-- [ ] M6: PocketBase sync
-- [ ] M7: Solo practice mode + stats
+- [ ] **M0**: Expo + TypeScript scaffold, navigation shell
+- [ ] **M1**: Player roster CRUD + SQLite schema
+- [ ] **M2**: New match flow (player picker, race target, coin toss)
+- [ ] **M3**: Scoring screen — ball grid, active-player toggle, scoring logic
+- [ ] **M4**: Frame/match timers + auto-detect end-of-match
+- [ ] **M5**: Match summary + history list
+- [ ] **M6**: Pool ball visual polish (solids/stripes art)
+- [ ] **M7**: EAS Build → TestFlight + Play Internal
+- [ ] **M8 (v2)**: Fouls/safeties, charts, solo practice
+- [ ] **M9 (v2)**: PocketBase cloud sync
 
-## Game Rules Reference
-American Rotation (BCA/Dr. Cue variant):
-- Rack 15 balls, break required to drive 3+ balls to rails or pocket a ball
-- Lowest-numbered ball must be contacted first
-- Any ball legally pocketed scores its number in points
-- Game to a target score (commonly 200 or race-to-N racks)
-- Fouls: ball-in-hand for opponent, -1 point penalty (varies by ruleset)
+## Reference
+Inspired by TotalPool (iPadOS) — improving on:
+- Native iOS + Android from one codebase
+- Realistic ball graphics vs flat tiles
+- Clearer active-player state
+- Correct American Rotation scoring (1 pt for 1–10, 2 pts for 11–15)
 
 ## Author
 Michael Manuele
