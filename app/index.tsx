@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Link, router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { colors } from '@/theme/colors';
 import { useMatchStore } from '@/store/matchStore';
 import { findInProgress, type MatchSummary } from '@/db/matches';
@@ -133,19 +133,18 @@ function MenuButton({
   primary?: boolean;
 }) {
   return (
-    <Link href={href as any} asChild>
-      <Pressable
-        style={({ pressed }) => [
-          styles.btn,
-          primary && styles.btnPrimary,
-          pressed && { opacity: 0.85, transform: [{ scale: 0.985 }] },
-        ]}
-      >
-        <Text style={[styles.btnText, primary && styles.btnTextPrimary]}>
-          {label}
-        </Text>
-      </Pressable>
-    </Link>
+    <Pressable
+      onPress={() => router.push(href as any)}
+      style={({ pressed }) => [
+        styles.btn,
+        primary && styles.btnPrimary,
+        pressed && { opacity: 0.85, transform: [{ scale: 0.985 }] },
+      ]}
+    >
+      <Text style={[styles.btnText, primary && styles.btnTextPrimary]}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -216,7 +215,13 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textAlign: 'center',
   },
-  menu: { gap: 14 },
+  menu: {
+    gap: 14,
+    alignSelf: 'stretch',
+    maxWidth: 480,
+    width: '100%',
+    marginHorizontal: 'auto',
+  },
   btn: {
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
@@ -225,6 +230,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     borderRadius: 16,
     alignItems: 'center',
+    alignSelf: 'stretch',
   },
   btnPrimary: {
     backgroundColor: 'rgba(245,134,52,0.16)',
