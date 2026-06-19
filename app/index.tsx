@@ -1,11 +1,17 @@
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import Constants from 'expo-constants';
 import { colors } from '@/theme/colors';
 import { useMatchStore } from '@/store/matchStore';
 import { findInProgress, type MatchSummary } from '@/db/matches';
 import { playerFullName } from '@/domain/types';
 import { RulesModal } from '@/components/RulesModal';
+
+const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
+const BUILD_NUMBER =
+  Constants.expoConfig?.ios?.buildNumber ??
+  Constants.expoConfig?.android?.versionCode?.toString();
 
 export default function Home() {
   const [resume, setResume] = useState<MatchSummary | null>(null);
@@ -119,6 +125,11 @@ export default function Home() {
       </View>
 
       <RulesModal visible={rulesOpen} onClose={() => setRulesOpen(false)} />
+
+      <Text style={styles.version}>
+        v{APP_VERSION}
+        {BUILD_NUMBER ? ` (${BUILD_NUMBER})` : ''}
+      </Text>
     </View>
   );
 }
@@ -265,5 +276,14 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: 'uppercase',
     fontWeight: '700',
+  },
+  version: {
+    position: 'absolute',
+    bottom: 16,
+    right: 20,
+    color: colors.textTertiary,
+    fontSize: 11,
+    letterSpacing: 1,
+    opacity: 0.6,
   },
 });
