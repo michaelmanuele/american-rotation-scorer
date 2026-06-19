@@ -103,31 +103,47 @@ export default function Home() {
       )}
 
       <View style={styles.menu}>
-        <MenuButton href="/match/new" label="New Match" />
+        <MenuButton href="/match/new" label="New Match" primary />
         <MenuButton href="/history" label="History" />
         <MenuButton href="/roster" label="Players" />
       </View>
 
-      <Pressable
-        onPress={() => setRulesOpen(true)}
-        style={({ pressed }) => [styles.rulesLink, pressed && { opacity: 0.6 }]}
-        hitSlop={10}
-      >
-        <Text style={styles.rulesLinkText}>Rules & How to Score</Text>
-      </Pressable>
+      <View style={styles.rulesRow}>
+        <Pressable
+          onPress={() => setRulesOpen(true)}
+          style={({ pressed }) => [styles.rulesPill, pressed && { opacity: 0.7 }]}
+          hitSlop={10}
+        >
+          <Text style={styles.rulesPillText}>Rules & How to Score</Text>
+        </Pressable>
+      </View>
 
       <RulesModal visible={rulesOpen} onClose={() => setRulesOpen(false)} />
     </View>
   );
 }
 
-function MenuButton({ href, label }: { href: string; label: string }) {
+function MenuButton({
+  href,
+  label,
+  primary,
+}: {
+  href: string;
+  label: string;
+  primary?: boolean;
+}) {
   return (
     <Link href={href as any} asChild>
       <Pressable
-        style={({ pressed }) => [styles.btn, pressed && { opacity: 0.85 }]}
+        style={({ pressed }) => [
+          styles.btn,
+          primary && styles.btnPrimary,
+          pressed && { opacity: 0.85, transform: [{ scale: 0.985 }] },
+        ]}
       >
-        <Text style={styles.btnText}>{label}</Text>
+        <Text style={[styles.btnText, primary && styles.btnTextPrimary]}>
+          {label}
+        </Text>
       </Pressable>
     </Link>
   );
@@ -200,30 +216,48 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textAlign: 'center',
   },
-  menu: { gap: 12 },
+  menu: { gap: 14 },
   btn: {
-    backgroundColor: colors.surface,
-    padding: 18,
-    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    paddingVertical: 22,
+    paddingHorizontal: 18,
+    borderRadius: 16,
     alignItems: 'center',
+  },
+  btnPrimary: {
+    backgroundColor: 'rgba(245,134,52,0.16)',
+    borderColor: 'rgba(245,134,52,0.55)',
   },
   btnText: {
     color: colors.textPrimary,
-    fontWeight: '700',
-    fontSize: 16,
-    letterSpacing: 1,
+    fontWeight: '800',
+    fontSize: 17,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
-  rulesLink: {
-    alignSelf: 'center',
-    marginTop: 24,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+  btnTextPrimary: {
+    color: colors.textPrimary,
+    letterSpacing: 2,
   },
-  rulesLinkText: {
+  rulesRow: {
+    alignItems: 'center',
+    marginTop: 28,
+  },
+  rulesPill: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+  },
+  rulesPillText: {
     color: colors.textSecondary,
-    fontSize: 13,
+    fontSize: 12,
     letterSpacing: 2,
     textTransform: 'uppercase',
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });
