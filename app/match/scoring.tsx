@@ -221,7 +221,9 @@ export default function Scoring() {
         </Pressable>
 
         <View style={styles.headerCenterWrap}>
-          <Text style={styles.headerCenter}>RACE TO {current.raceTo}</Text>
+          <View style={styles.raceToPill}>
+            <Text style={styles.raceToPillText}>RACE TO {current.raceTo}</Text>
+          </View>
           <View style={styles.chipRow}>
             <Pressable
               onPress={() => setRulesOpen(true)}
@@ -307,6 +309,20 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     letterSpacing: 2,
     fontWeight: '700',
+  },
+  raceToPill: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  raceToPillText: {
+    color: colors.textPrimary,
+    letterSpacing: 2.5,
+    fontWeight: '800',
+    fontSize: 16,
   },
   chipRow: {
     flexDirection: 'row',
