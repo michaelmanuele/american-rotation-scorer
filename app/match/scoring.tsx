@@ -238,24 +238,26 @@ export default function Scoring() {
           </View>
         </View>
 
-        <View style={styles.headerRightCol}>
-          <Pressable
-            onPress={onNextFrame}
-            disabled={!frameComplete}
-            style={[
-              styles.headerBtn,
-              styles.headerBtnRight,
-              !frameComplete && { opacity: 0.4 },
-            ]}
-          >
-            <Text style={styles.headerBtnText}>Next Frame →</Text>
-          </Pressable>
-          <Text style={styles.timerText}>{elapsedLabel}</Text>
-        </View>
+        <Pressable
+          onPress={onNextFrame}
+          disabled={!frameComplete}
+          style={[
+            styles.headerBtn,
+            styles.headerBtnRight,
+            !frameComplete && { opacity: 0.4 },
+          ]}
+        >
+          <Text style={styles.headerBtnText}>Next Frame →</Text>
+        </Pressable>
       </View>
 
-      <View style={styles.frameLabelWrap}>
-        <Text style={styles.frameLabel}>FRAME {current.frames.length}</Text>
+      <View style={styles.labelRow}>
+        <View style={styles.pillLabel}>
+          <Text style={styles.pillLabelText}>FRAME {current.frames.length}</Text>
+        </View>
+        <View style={styles.pillLabel}>
+          <Text style={styles.pillLabelText}>MATCH TIME {elapsedLabel}</Text>
+        </View>
       </View>
 
       {isLandscape ? (
@@ -337,32 +339,26 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 1.5,
   },
-  frameLabelWrap: {
-    alignSelf: 'flex-start',
+  labelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  pillLabel: {
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
-    marginVertical: 8,
   },
-  frameLabel: {
+  pillLabelText: {
     color: colors.textPrimary,
     letterSpacing: 2,
     fontWeight: '800',
     fontSize: 13,
-  },
-  headerRightCol: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  timerText: {
-    color: colors.textSecondary,
     fontVariant: ['tabular-nums'],
-    fontWeight: '700',
-    fontSize: 13,
-    letterSpacing: 1,
   },
   playersRow: {
     flexDirection: 'row',
