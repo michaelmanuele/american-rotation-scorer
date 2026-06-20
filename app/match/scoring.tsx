@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useMatchStore } from '@/store/matchStore';
@@ -153,6 +154,35 @@ export default function Scoring() {
   // Show End Match chip in header once anyone has reached the race target.
   const showEndChip = winnerSlot !== null;
 
+  // Landscape detection — split player cards (left) from ball rack (right)
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
+
+  const playerCards = (
+    <>
+      <PlayerCard
+        player={current.players[topSlot]}
+        slot={topSlot}
+        active={activeSlot === topSlot}
+        matchScore={matchTotals[topSlot]}
+        frameScore={frameTotals[topSlot]}
+        isBreaker={currentBreakerSlot === topSlot}
+        onPress={() => setActiveSlot(topSlot)}
+      />
+      <PlayerCard
+        player={current.players[bottomSlot]}
+        slot={bottomSlot}
+        active={activeSlot === bottomSlot}
+        matchScore={matchTotals[bottomSlot]}
+        frameScore={frameTotals[bottomSlot]}
+        isBreaker={currentBreakerSlot === bottomSlot}
+        onPress={() => setActiveSlot(bottomSlot)}
+      />
+    </>
+  );
+
+  const ballRack = <BallGrid pocketedBy={pocketedBy} onTapBall={onTapBall} />;
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* Header strip */}
@@ -198,28 +228,17 @@ export default function Scoring() {
 
       <Text style={styles.frameLabel}>FRAME {current.frames.length}</Text>
 
-      <PlayerCard
-        player={current.players[topSlot]}
-        slot={topSlot}
-        active={activeSlot === topSlot}
-        matchScore={matchTotals[topSlot]}
-        frameScore={frameTotals[topSlot]}
-        isBreaker={currentBreakerSlot === topSlot}
-        onPress={() => setActiveSlot(topSlot)}
-      />
-      <PlayerCard
-        player={current.players[bottomSlot]}
-        slot={bottomSlot}
-        active={activeSlot === bottomSlot}
-        matchScore={matchTotals[bottomSlot]}
-        frameScore={frameTotals[bottomSlot]}
-        isBreaker={currentBreakerSlot === bottomSlot}
-        onPress={() => setActiveSlot(bottomSlot)}
-      />
-
-      <View style={{ marginTop: 14 }}>
-        <BallGrid pocketedBy={pocketedBy} onTapBall={onTapBall} />
-      </View>
+      {isLandscape ? (
+        <View style={styles.splitRow}>
+          <View style={styles.splitLeft}>{playerCards}</View>
+          <View style={styles.splitRight}>{ballRack}</View>
+        </View>
+      ) : (
+        <>
+          {playerCards}
+          <View style={{ marginTop: 14 }}>{ballRack}</View>
+        </>
+      )}
 
       <RulesModal visible={rulesOpen} onClose={() => setRulesOpen(false)} />
     </ScrollView>
@@ -290,6 +309,20 @@ const styles = StyleSheet.create({
     marginVertical: 6,
     fontWeight: '700',
     fontSize: 12,
+  },
+  splitRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 6,
+  },
+  splitLeft: {
+    flex: 1,
+    gap: 10,
+  },
+  splitRight: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyText: { color: colors.textSecondary, marginBottom: 16 },
