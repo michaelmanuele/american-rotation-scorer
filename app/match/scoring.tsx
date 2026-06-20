@@ -47,6 +47,21 @@ export default function Scoring() {
   const [askedFinish, setAskedFinish] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
 
+  // Landscape detection — hooks must run before any early return below
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
+
+  // Match timer — ticks every second from startedAt; freezes once match ends.
+  const [nowMs, setNowMs] = useState(Date.now());
+  useEffect(() => {
+    if (current?.endedAt) {
+      setNowMs(current.endedAt);
+      return;
+    }
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [current?.endedAt]);
+
   // Auto-detect race-to completion (first time a player crosses target)
   useEffect(() => {
     if (winnerSlot !== null && !askedFinish && current) {
@@ -61,9 +76,9 @@ export default function Scoring() {
           {
             text: 'End Match',
             style: 'destructive',
-            onPress: async () => {
-              await endMatch();
+            onPress: () => {
               router.replace(`/match/summary?id=${finishedMatchId}`);
+              endMatch();
             },
           },
         ]
@@ -134,9 +149,9 @@ export default function Scoring() {
         {
           text: 'End Match',
           style: 'destructive',
-          onPress: async () => {
-            await endMatch();
+          onPress: () => {
             router.replace(`/match/summary?id=${finishedMatchId}`);
+            endMatch();
           },
         },
       ]
@@ -153,9 +168,9 @@ export default function Scoring() {
         {
           text: 'Abandon',
           style: 'destructive',
-          onPress: async () => {
-            await abandonMatch();
+          onPress: () => {
             router.replace('/');
+            abandonMatch();
           },
         },
       ]
@@ -165,21 +180,7 @@ export default function Scoring() {
   // Show End Match chip in header once anyone has reached the race target.
   const showEndChip = winnerSlot !== null;
 
-  // Landscape detection — split player cards (left) from ball rack (right)
-  const { width, height } = useWindowDimensions();
-  const isLandscape = width > height;
-
-  // Match timer — ticks every second from startedAt; freezes once match ends.
-  const [nowMs, setNowMs] = useState(Date.now());
-  useEffect(() => {
-    if (current?.endedAt) {
-      setNowMs(current.endedAt);
-      return;
-    }
-    const id = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [current?.endedAt]);
-  const elapsedMs = current ? (current.endedAt ?? nowMs) - current.startedAt : 0;
+  const elapsedMs = (current.endedAt ?? nowMs) - current.startedAt;
   const elapsedLabel = formatElapsed(elapsedMs);
 
   const topPlayerCard = (
