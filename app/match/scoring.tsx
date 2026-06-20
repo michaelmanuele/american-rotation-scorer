@@ -16,6 +16,17 @@ import { RulesModal } from '@/components/RulesModal';
 import { colors } from '@/theme/colors';
 import { breakerForFrame, playerFullName } from '@/domain/types';
 
+function formatElapsed(ms: number): string {
+  if (!isFinite(ms) || ms < 0) ms = 0;
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
 export default function Scoring() {
   const current = useMatchStore((s) => s.current);
   const activeSlot = useMatchStore((s) => s.activeSlot);
@@ -158,6 +169,19 @@ export default function Scoring() {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
 
+  // Match timer — ticks every second from startedAt; freezes once match ends.
+  const [nowMs, setNowMs] = useState(Date.now());
+  useEffect(() => {
+    if (current?.endedAt) {
+      setNowMs(current.endedAt);
+      return;
+    }
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [current?.endedAt]);
+  const elapsedMs = current ? (current.endedAt ?? nowMs) - current.startedAt : 0;
+  const elapsedLabel = formatElapsed(elapsedMs);
+
   const topPlayerCard = (
     <PlayerCard
       player={current.players[topSlot]}
@@ -214,20 +238,25 @@ export default function Scoring() {
           </View>
         </View>
 
-        <Pressable
-          onPress={onNextFrame}
-          disabled={!frameComplete}
-          style={[
-            styles.headerBtn,
-            styles.headerBtnRight,
-            !frameComplete && { opacity: 0.4 },
-          ]}
-        >
-          <Text style={styles.headerBtnText}>Next Frame →</Text>
-        </Pressable>
+        <View style={styles.headerRightCol}>
+          <Pressable
+            onPress={onNextFrame}
+            disabled={!frameComplete}
+            style={[
+              styles.headerBtn,
+              styles.headerBtnRight,
+              !frameComplete && { opacity: 0.4 },
+            ]}
+          >
+            <Text style={styles.headerBtnText}>Next Frame →</Text>
+          </Pressable>
+          <Text style={styles.timerText}>{elapsedLabel}</Text>
+        </View>
       </View>
 
-      <Text style={styles.frameLabel}>FRAME {current.frames.length}</Text>
+      <View style={styles.frameLabelWrap}>
+        <Text style={styles.frameLabel}>FRAME {current.frames.length}</Text>
+      </View>
 
       {isLandscape ? (
         <>
@@ -308,12 +337,32 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 1.5,
   },
+  frameLabelWrap: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginVertical: 8,
+  },
   frameLabel: {
-    color: colors.textTertiary,
+    color: colors.textPrimary,
     letterSpacing: 2,
-    marginVertical: 6,
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  headerRightCol: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  timerText: {
+    color: colors.textSecondary,
+    fontVariant: ['tabular-nums'],
     fontWeight: '700',
-    fontSize: 12,
+    fontSize: 13,
+    letterSpacing: 1,
   },
   playersRow: {
     flexDirection: 'row',
