@@ -158,27 +158,28 @@ export default function Scoring() {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
 
-  const playerCards = (
-    <>
-      <PlayerCard
-        player={current.players[topSlot]}
-        slot={topSlot}
-        active={activeSlot === topSlot}
-        matchScore={matchTotals[topSlot]}
-        frameScore={frameTotals[topSlot]}
-        isBreaker={currentBreakerSlot === topSlot}
-        onPress={() => setActiveSlot(topSlot)}
-      />
-      <PlayerCard
-        player={current.players[bottomSlot]}
-        slot={bottomSlot}
-        active={activeSlot === bottomSlot}
-        matchScore={matchTotals[bottomSlot]}
-        frameScore={frameTotals[bottomSlot]}
-        isBreaker={currentBreakerSlot === bottomSlot}
-        onPress={() => setActiveSlot(bottomSlot)}
-      />
-    </>
+  const topPlayerCard = (
+    <PlayerCard
+      player={current.players[topSlot]}
+      slot={topSlot}
+      active={activeSlot === topSlot}
+      matchScore={matchTotals[topSlot]}
+      frameScore={frameTotals[topSlot]}
+      isBreaker={currentBreakerSlot === topSlot}
+      onPress={() => setActiveSlot(topSlot)}
+    />
+  );
+
+  const bottomPlayerCard = (
+    <PlayerCard
+      player={current.players[bottomSlot]}
+      slot={bottomSlot}
+      active={activeSlot === bottomSlot}
+      matchScore={matchTotals[bottomSlot]}
+      frameScore={frameTotals[bottomSlot]}
+      isBreaker={currentBreakerSlot === bottomSlot}
+      onPress={() => setActiveSlot(bottomSlot)}
+    />
   );
 
   const ballRack = <BallGrid pocketedBy={pocketedBy} onTapBall={onTapBall} />;
@@ -229,13 +230,17 @@ export default function Scoring() {
       <Text style={styles.frameLabel}>FRAME {current.frames.length}</Text>
 
       {isLandscape ? (
-        <View style={styles.splitRow}>
-          <View style={styles.splitLeft}>{playerCards}</View>
-          <View style={styles.splitRight}>{ballRack}</View>
-        </View>
+        <>
+          <View style={styles.playersRow}>
+            <View style={styles.playerCol}>{topPlayerCard}</View>
+            <View style={styles.playerCol}>{bottomPlayerCard}</View>
+          </View>
+          <View style={{ marginTop: 14 }}>{ballRack}</View>
+        </>
       ) : (
         <>
-          {playerCards}
+          {topPlayerCard}
+          {bottomPlayerCard}
           <View style={{ marginTop: 14 }}>{ballRack}</View>
         </>
       )}
@@ -310,19 +315,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 12,
   },
-  splitRow: {
+  playersRow: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
     marginTop: 6,
   },
-  splitLeft: {
+  playerCol: {
     flex: 1,
-    gap: 10,
-  },
-  splitRight: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   emptyText: { color: colors.textSecondary, marginBottom: 16 },
