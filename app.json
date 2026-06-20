@@ -2,7 +2,7 @@
   "expo": {
     "name": "American Rotation Scorer",
     "slug": "american-rotation-scorer",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "orientation": "default",
     "scheme": "arscorer",
     "userInterfaceStyle": "dark",
