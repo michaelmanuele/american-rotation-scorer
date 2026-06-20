@@ -3,7 +3,7 @@
     "name": "American Rotation Scorer",
     "slug": "american-rotation-scorer",
     "version": "0.1.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "scheme": "arscorer",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
