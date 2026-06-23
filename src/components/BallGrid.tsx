@@ -17,6 +17,8 @@ const ROWS = 3;
 const COL_GAP = 12;
 const ROW_GAP = 14;
 const SIDE_PADDING = 12;
+// PoolBall always reserves 6px ring padding on each side (12px total per ball).
+const BALL_RING_OVERHEAD = 12;
 
 /**
  * Explicit 3 rows x 5 columns grid of pool balls.
@@ -30,12 +32,15 @@ export function BallGrid({
 }: Props) {
   const { width: winW } = useWindowDimensions();
   const widthBudget = (availableWidth ?? winW) - SIDE_PADDING * 2;
-  const sizeFromWidth = Math.floor((widthBudget - COL_GAP * (COLS - 1)) / COLS);
+  // Each ball cell is `size + BALL_RING_OVERHEAD` wide; solve for inner `size`.
+  const sizeFromWidth = Math.floor(
+    (widthBudget - COL_GAP * (COLS - 1)) / COLS - BALL_RING_OVERHEAD
+  );
 
   let size = sizeFromWidth;
   if (availableHeight) {
     const sizeFromHeight = Math.floor(
-      (availableHeight - ROW_GAP * (ROWS - 1)) / ROWS
+      (availableHeight - ROW_GAP * (ROWS - 1)) / ROWS - BALL_RING_OVERHEAD
     );
     size = Math.min(sizeFromWidth, sizeFromHeight);
   }

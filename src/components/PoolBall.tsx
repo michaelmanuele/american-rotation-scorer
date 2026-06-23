@@ -35,7 +35,8 @@ export function PoolBall({ ball, size = 96, pocketedBy, onPress, disabled }: Pro
   const ownerColor = pocketedBy === 0 ? colors.p1 : pocketedBy === 1 ? colors.p2 : null;
 
   // Outer wrapper sizes include space for the owner ring
-  const ringPad = isPocketed ? 6 : 0;
+  // Always reserve ring space so pocketed balls don't shift their grid cell.
+  const ringPad = 6;
   const outerSize = size + ringPad * 2;
 
   return (
