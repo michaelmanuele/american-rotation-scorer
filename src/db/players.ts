@@ -8,6 +8,7 @@ interface PlayerRow {
   phone: string | null;
   created_at: number;
   updated_at: number;
+  challonge_participant_id: number | null;
 }
 
 function rowToPlayer(r: PlayerRow): Player {
@@ -17,7 +18,30 @@ function rowToPlayer(r: PlayerRow): Player {
     lastName: r.last_name,
     phone: r.phone ?? undefined,
     createdAt: r.created_at,
+    challongeParticipantId: r.challonge_participant_id ?? undefined,
   };
+}
+
+export async function findPlayerByChallongeId(
+  challongeParticipantId: number
+): Promise<Player | null> {
+  const db = await getDB();
+  const row = await db.getFirstAsync<PlayerRow>(
+    `SELECT * FROM players WHERE challonge_participant_id = ?`,
+    challongeParticipantId
+  );
+  return row ? rowToPlayer(row) : null;
+}
+
+export async function linkPlayerToChallonge(
+  playerId: string,
+  challongeParticipantId: number
+): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(
+    `UPDATE players SET challonge_participant_id = ?, updated_at = ? WHERE id = ?`,
+    [challongeParticipantId, Date.now(), playerId]
+  );
 }
 
 export async function listPlayers(): Promise<Player[]> {

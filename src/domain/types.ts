@@ -6,6 +6,7 @@ export interface Player {
   lastName: string;
   phone?: string;
   createdAt: number;
+  challongeParticipantId?: number;
 }
 
 export interface Frame {

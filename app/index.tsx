@@ -70,6 +70,15 @@ export default function Home() {
 
   return (
     <View style={styles.container}>
+      <Pressable
+        onPress={() => router.push('/settings')}
+        hitSlop={12}
+        style={({ pressed }) => [styles.gear, pressed && { opacity: 0.6 }]}
+        accessibilityLabel="Settings"
+      >
+        <Text style={styles.gearIcon}>⚙︎</Text>
+      </Pressable>
+
       <Text style={styles.brand}>AMERICAN ROTATION</Text>
       <Text style={styles.tag}>Scorer</Text>
 
@@ -112,6 +121,7 @@ export default function Home() {
         <MenuButton href="/match/new" label="New Match" primary />
         <MenuButton href="/history" label="History" />
         <MenuButton href="/roster" label="Players" />
+        <MenuButton href="/tournaments" label="Tournaments" />
       </View>
 
       <View style={styles.rulesRow}>
@@ -285,5 +295,18 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 1,
     opacity: 0.6,
+  },
+  gear: {
+    position: 'absolute',
+    top: 14,
+    right: 18,
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gearIcon: {
+    color: colors.textSecondary,
+    fontSize: 26,
   },
 });

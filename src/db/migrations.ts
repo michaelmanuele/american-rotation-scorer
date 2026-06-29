@@ -64,6 +64,20 @@ const MIGRATIONS: { version: number; sql: string }[] = [
         ON match_events(match_id, seq);
     `,
   },
+  {
+    version: 3,
+    sql: `
+      -- Challonge integration: link local players + matches to Challonge entities.
+      ALTER TABLE players ADD COLUMN challonge_participant_id INTEGER;
+      ALTER TABLE matches ADD COLUMN challonge_match_id INTEGER;
+      ALTER TABLE matches ADD COLUMN challonge_tournament_slug TEXT;
+      ALTER TABLE matches ADD COLUMN posted_to_challonge_at INTEGER;
+      CREATE INDEX IF NOT EXISTS idx_players_challonge
+        ON players(challonge_participant_id);
+      CREATE INDEX IF NOT EXISTS idx_matches_challonge
+        ON matches(challonge_match_id);
+    `,
+  },
 ];
 
 const CURRENT_VERSION_KEY = 'schema_version';

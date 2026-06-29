@@ -79,6 +79,8 @@ export default function RootLayout() {
         <Stack.Screen name="match/summary" options={{ title: 'Summary' }} />
         <Stack.Screen name="history" options={{ title: 'History' }} />
         <Stack.Screen name="roster" options={{ title: 'Players' }} />
+        <Stack.Screen name="tournaments" options={{ title: 'Tournaments' }} />
+        <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       </Stack>
     </GestureHandlerRootView>
   );
