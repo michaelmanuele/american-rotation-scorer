@@ -246,36 +246,54 @@ function UpcomingMatches({
   tournament: ChallongeTournament;
   myId: number | null;
 }) {
-  const open = tournament.matches.filter((m) => m.state === 'open');
+  const allOpen = tournament.matches.filter((m) => m.state === 'open');
   const nameById = new Map<number, string>(
     tournament.participants.map((p) => [p.id, p.name])
   );
 
-  if (open.length === 0) {
+  // "This is me" not set yet — nudge user to Settings instead of showing
+  // a wall of unrelated matches.
+  if (myId === null) {
     return (
       <>
-        <Text style={styles.sectionLabel}>UPCOMING MATCHES</Text>
+        <Text style={styles.sectionLabel}>YOUR UPCOMING MATCHES</Text>
         <View style={styles.emptyMatches}>
           <Text style={styles.emptyMatchesText}>
-            No open matches right now.
+            Set “this is me” in Settings to see your matches here.
           </Text>
         </View>
       </>
     );
   }
 
-  // Sort: matches involving "me" first, then by round, then by identifier.
-  const sorted = [...open].sort((a, b) => {
-    const aMe = myId !== null && (a.player1_id === myId || a.player2_id === myId);
-    const bMe = myId !== null && (b.player1_id === myId || b.player2_id === myId);
-    if (aMe !== bMe) return aMe ? -1 : 1;
+  const mine = allOpen.filter(
+    (m) => m.player1_id === myId || m.player2_id === myId
+  );
+
+  if (mine.length === 0) {
+    return (
+      <>
+        <Text style={styles.sectionLabel}>YOUR UPCOMING MATCHES</Text>
+        <View style={styles.emptyMatches}>
+          <Text style={styles.emptyMatchesText}>
+            {allOpen.length === 0
+              ? 'No open matches in this tournament right now.'
+              : 'You\u2019re not in any open match right now. Check back after the next round is generated.'}
+          </Text>
+        </View>
+      </>
+    );
+  }
+
+  // Sort by round, then identifier.
+  const sorted = [...mine].sort((a, b) => {
     if (a.round !== b.round) return a.round - b.round;
     return (a.identifier ?? '').localeCompare(b.identifier ?? '');
   });
 
   return (
     <>
-      <Text style={styles.sectionLabel}>UPCOMING MATCHES</Text>
+      <Text style={styles.sectionLabel}>YOUR UPCOMING MATCHES</Text>
       {sorted.map((m) => (
         <UpcomingMatchRow
           key={m.id}

@@ -37,7 +37,7 @@ export default function NewMatch() {
 
   const [p1, setP1] = useState<Player | null>(null);
   const [p2, setP2] = useState<Player | null>(null);
-  const [raceTo, setRaceTo] = useState('100');
+  const [raceTo, setRaceTo] = useState('120');
   const [prefillError, setPrefillError] = useState<string | null>(null);
 
   const [pickerSlot, setPickerSlot] = useState<0 | 1 | null>(null);
@@ -162,7 +162,7 @@ export default function NewMatch() {
         value={raceTo}
         onChangeText={setRaceTo}
         keyboardType="number-pad"
-        placeholder="100"
+        placeholder="120"
         placeholderTextColor={colors.textTertiary}
       />
 
