@@ -12,6 +12,7 @@ import { colors } from '@/theme/colors';
 import {
   ChallongeError,
   getTournament,
+  type ChallongeMatch,
   type ChallongeParticipant,
   type ChallongeTournament,
 } from '@/services/challonge';
@@ -204,6 +205,11 @@ export default function Tournaments() {
         </View>
       )}
 
+      <UpcomingMatches
+        tournament={tournament}
+        myId={myId}
+      />
+
       <Text style={styles.sectionLabel}>PARTICIPANTS</Text>
       <View>
         {tournament.participants.map((p) => {
@@ -225,6 +231,136 @@ export default function Tournaments() {
         })}
       </View>
     </ScrollView>
+  );
+}
+
+/**
+ * Upcoming Matches = all Challonge matches in state 'open' (both players
+ * decided, ready to play). Tap to launch the New Match flow with both
+ * players pre-filled and the Challonge match id stashed for later result post.
+ */
+function UpcomingMatches({
+  tournament,
+  myId,
+}: {
+  tournament: ChallongeTournament;
+  myId: number | null;
+}) {
+  const open = tournament.matches.filter((m) => m.state === 'open');
+  const nameById = new Map<number, string>(
+    tournament.participants.map((p) => [p.id, p.name])
+  );
+
+  if (open.length === 0) {
+    return (
+      <>
+        <Text style={styles.sectionLabel}>UPCOMING MATCHES</Text>
+        <View style={styles.emptyMatches}>
+          <Text style={styles.emptyMatchesText}>
+            No open matches right now.
+          </Text>
+        </View>
+      </>
+    );
+  }
+
+  // Sort: matches involving "me" first, then by round, then by identifier.
+  const sorted = [...open].sort((a, b) => {
+    const aMe = myId !== null && (a.player1_id === myId || a.player2_id === myId);
+    const bMe = myId !== null && (b.player1_id === myId || b.player2_id === myId);
+    if (aMe !== bMe) return aMe ? -1 : 1;
+    if (a.round !== b.round) return a.round - b.round;
+    return (a.identifier ?? '').localeCompare(b.identifier ?? '');
+  });
+
+  return (
+    <>
+      <Text style={styles.sectionLabel}>UPCOMING MATCHES</Text>
+      {sorted.map((m) => (
+        <UpcomingMatchRow
+          key={m.id}
+          match={m}
+          tournamentSlug={tournament.url}
+          p1Name={m.player1_id !== null ? nameById.get(m.player1_id) ?? '?' : '?'}
+          p2Name={m.player2_id !== null ? nameById.get(m.player2_id) ?? '?' : '?'}
+          myId={myId}
+        />
+      ))}
+    </>
+  );
+}
+
+function UpcomingMatchRow({
+  match,
+  tournamentSlug,
+  p1Name,
+  p2Name,
+  myId,
+}: {
+  match: ChallongeMatch;
+  tournamentSlug: string;
+  p1Name: string;
+  p2Name: string;
+  myId: number | null;
+}) {
+  const meSlot: 0 | 1 | null =
+    myId !== null && match.player1_id === myId
+      ? 0
+      : myId !== null && match.player2_id === myId
+      ? 1
+      : null;
+  const isMine = meSlot !== null;
+
+  const onPress = () => {
+    if (match.player1_id === null || match.player2_id === null) return;
+    router.push({
+      pathname: '/match/new',
+      params: {
+        challongeMatchId: String(match.id),
+        challongeSlug: tournamentSlug,
+        p1ChallongeId: String(match.player1_id),
+        p2ChallongeId: String(match.player2_id),
+        p1Name,
+        p2Name,
+      },
+    });
+  };
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.matchRow,
+        isMine && styles.matchRowMine,
+        pressed && { opacity: 0.85 },
+      ]}
+    >
+      <View style={styles.roundBadge}>
+        <Text style={styles.roundBadgeText}>R{match.round}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text
+          style={[
+            styles.matchPlayer,
+            meSlot === 0 && styles.matchPlayerMe,
+          ]}
+          numberOfLines={1}
+        >
+          {p1Name}
+        </Text>
+        <Text style={styles.matchVs}>vs</Text>
+        <Text
+          style={[
+            styles.matchPlayer,
+            meSlot === 1 && styles.matchPlayerMe,
+          ]}
+          numberOfLines={1}
+        >
+          {p2Name}
+        </Text>
+      </View>
+      <Text style={styles.matchChev}>›</Text>
+    </Pressable>
   );
 }
 
@@ -434,5 +570,63 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 8,
     textAlign: 'center',
+  },
+  emptyMatches: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 18,
+  },
+  emptyMatchesText: {
+    color: colors.textTertiary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
+  matchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 6,
+    gap: 12,
+  },
+  matchRowMine: {
+    borderWidth: 1,
+    borderColor: 'rgba(233,30,99,0.55)',
+    backgroundColor: 'rgba(233,30,99,0.10)',
+  },
+  roundBadge: {
+    minWidth: 40,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roundBadgeText: {
+    color: colors.textSecondary,
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  matchPlayer: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  matchPlayerMe: {
+    color: colors.p1,
+  },
+  matchVs: {
+    color: colors.textTertiary,
+    fontSize: 11,
+    letterSpacing: 2,
+    marginVertical: 2,
+  },
+  matchChev: {
+    color: colors.textTertiary,
+    fontSize: 26,
+    paddingHorizontal: 6,
   },
 });

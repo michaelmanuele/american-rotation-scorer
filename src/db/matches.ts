@@ -43,6 +43,10 @@ export interface CreateMatchInput {
   players: [Player, Player];
   raceTo: number;
   initialBreakerSlot: 0 | 1;
+  /** Optional: link this local match to a Challonge match for later result post. */
+  challongeMatchId?: number;
+  /** Optional: the Challonge tournament slug this match belongs to. */
+  challongeTournamentSlug?: string;
 }
 
 export interface MatchSummary {
@@ -87,8 +91,9 @@ export async function createMatch(
   await db.runAsync(
     `INSERT INTO matches (
         id, player1_id, player2_id, race_to, initial_breaker_slot,
-        status, started_at, p1_score, p2_score, frames_played
-      ) VALUES (?, ?, ?, ?, ?, 'in_progress', ?, 0, 0, 1)`,
+        status, started_at, p1_score, p2_score, frames_played,
+        challonge_match_id, challonge_tournament_slug
+      ) VALUES (?, ?, ?, ?, ?, 'in_progress', ?, 0, 0, 1, ?, ?)`,
     [
       id,
       input.players[0].id,
@@ -96,6 +101,8 @@ export async function createMatch(
       input.raceTo,
       input.initialBreakerSlot,
       now,
+      input.challongeMatchId ?? null,
+      input.challongeTournamentSlug ?? null,
     ]
   );
   return { id, startedAt: now };

@@ -26,6 +26,9 @@ interface NewMatchInput {
   players: [Player, Player];
   raceTo: number;
   initialBreakerSlot: 0 | 1;
+  /** Optional Challonge link, persisted on the match row. */
+  challongeMatchId?: number;
+  challongeTournamentSlug?: string;
 }
 
 interface MatchState {
@@ -86,7 +89,13 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     }
   },
 
-  startMatch: async ({ players, raceTo, initialBreakerSlot }) => {
+  startMatch: async ({
+    players,
+    raceTo,
+    initialBreakerSlot,
+    challongeMatchId,
+    challongeTournamentSlug,
+  }) => {
     // Safety: if a stale in-progress match exists in the DB (e.g. from a
     // prior crash that the user dismissed by ignoring the resume banner),
     // mark it abandoned before starting a new one so the schema invariant
@@ -99,6 +108,8 @@ export const useMatchStore = create<MatchState>((set, get) => ({
       players,
       raceTo,
       initialBreakerSlot,
+      challongeMatchId,
+      challongeTournamentSlug,
     });
     // Load the just-created match through the same replay path used everywhere
     // else, so initial state is constructed identically to a resume.

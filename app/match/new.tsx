@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
 import {
   Alert,
   Pressable,
@@ -12,6 +12,7 @@ import { useMatchStore } from '@/store/matchStore';
 import { colors } from '@/theme/colors';
 import { playerFullName, playerInitials, type Player } from '@/domain/types';
 import { PlayerPicker } from '@/components/PlayerPicker';
+import { findPlayerByChallongeId } from '@/db/players';
 
 /**
  * New-match setup using the roster-backed PlayerPicker.
@@ -24,13 +25,60 @@ import { PlayerPicker } from '@/components/PlayerPicker';
 export default function NewMatch() {
   const startMatch = useMatchStore((s) => s.startMatch);
 
+  // Optional Challonge prefill params (from Tournaments → tap a match).
+  const params = useLocalSearchParams<{
+    challongeMatchId?: string;
+    challongeSlug?: string;
+    p1ChallongeId?: string;
+    p2ChallongeId?: string;
+    p1Name?: string;
+    p2Name?: string;
+  }>();
+
   const [p1, setP1] = useState<Player | null>(null);
   const [p2, setP2] = useState<Player | null>(null);
   const [raceTo, setRaceTo] = useState('100');
+  const [prefillError, setPrefillError] = useState<string | null>(null);
 
   const [pickerSlot, setPickerSlot] = useState<0 | 1 | null>(null);
 
+  // Resolve Challonge participant ids → local Player rows on mount.
+  useEffect(() => {
+    const p1Id = params.p1ChallongeId
+      ? Number.parseInt(params.p1ChallongeId, 10)
+      : null;
+    const p2Id = params.p2ChallongeId
+      ? Number.parseInt(params.p2ChallongeId, 10)
+      : null;
+    if (!p1Id && !p2Id) return;
+
+    (async () => {
+      const missing: string[] = [];
+      if (p1Id) {
+        const found = await findPlayerByChallongeId(p1Id);
+        if (found) setP1(found);
+        else if (params.p1Name) missing.push(params.p1Name);
+      }
+      if (p2Id) {
+        const found = await findPlayerByChallongeId(p2Id);
+        if (found) setP2(found);
+        else if (params.p2Name) missing.push(params.p2Name);
+      }
+      if (missing.length > 0) {
+        setPrefillError(
+          `Not in your local Players yet: ${missing.join(
+            ', '
+          )}. Go to Tournaments → Sync Roster, then try again.`
+        );
+      }
+    })();
+  }, [params.p1ChallongeId, params.p2ChallongeId, params.p1Name, params.p2Name]);
+
   const canStart = !!p1 && !!p2 && Number.parseInt(raceTo, 10) > 0;
+  const challongeMatchId = params.challongeMatchId
+    ? Number.parseInt(params.challongeMatchId, 10)
+    : undefined;
+  const challongeSlug = params.challongeSlug || undefined;
 
   const onStart = () => {
     if (!p1 || !p2) return;
@@ -52,6 +100,8 @@ export default function NewMatch() {
               players,
               raceTo: target,
               initialBreakerSlot: tossLoser,
+              challongeMatchId,
+              challongeTournamentSlug: challongeSlug,
             });
             router.replace('/match/scoring');
           },
@@ -65,6 +115,8 @@ export default function NewMatch() {
               players,
               raceTo: target,
               initialBreakerSlot: tossWinner,
+              challongeMatchId,
+              challongeTournamentSlug: challongeSlug,
             });
             router.replace('/match/scoring');
           },
@@ -78,6 +130,19 @@ export default function NewMatch() {
 
   return (
     <View style={styles.container}>
+      {challongeMatchId !== undefined && (
+        <View style={styles.challongeBanner}>
+          <Text style={styles.challongeBannerLabel}>FROM CHALLONGE</Text>
+          <Text style={styles.challongeBannerText}>
+            Result will sync back to {challongeSlug ?? 'your tournament'}.
+          </Text>
+        </View>
+      )}
+      {prefillError && (
+        <View style={styles.prefillError}>
+          <Text style={styles.prefillErrorText}>{prefillError}</Text>
+        </View>
+      )}
       <PlayerSlot
         label="Player 1"
         player={p1}
@@ -241,5 +306,38 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 16,
     letterSpacing: 1,
+  },
+  challongeBanner: {
+    backgroundColor: 'rgba(0,229,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,229,255,0.45)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  challongeBannerLabel: {
+    color: colors.p2,
+    fontWeight: '800',
+    fontSize: 10,
+    letterSpacing: 2,
+    marginBottom: 2,
+  },
+  challongeBannerText: {
+    color: colors.textPrimary,
+    fontSize: 13,
+  },
+  prefillError: {
+    backgroundColor: 'rgba(255,69,58,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,69,58,0.5)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  prefillErrorText: {
+    color: colors.danger,
+    fontSize: 13,
   },
 });
