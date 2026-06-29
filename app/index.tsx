@@ -244,8 +244,8 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
   },
   btnPrimary: {
-    backgroundColor: 'rgba(245,134,52,0.16)',
-    borderColor: 'rgba(245,134,52,0.55)',
+    backgroundColor: 'rgba(233,30,99,0.16)',
+    borderColor: 'rgba(233,30,99,0.55)',
   },
   btnText: {
     color: colors.textPrimary,

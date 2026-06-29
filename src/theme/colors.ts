@@ -16,8 +16,8 @@ export const colors = {
   textTertiary: 'rgba(255,255,255,0.45)',
 
   // Players
-  p1: '#F58634', // orange
-  p2: '#34C759', // green
+  p1: '#E91E63', // deep magenta
+  p2: '#00E5FF', // electric cyan
   inactive: '#7A8A93',
 
   // Ball-grid neutrals
