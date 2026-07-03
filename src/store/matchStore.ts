@@ -166,16 +166,32 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     const { current } = get();
     if (!current) return;
     const frame = current.frames[current.frames.length - 1];
-    // Only undo within the current frame. Crossing back across a frame
-    // boundary would require an undo_frame_end event; not in MVP.
-    if (frame.events.length === 0) return;
-    const last = frame.events[frame.events.length - 1];
-    const { match } = await appendEvent(current.id, {
-      kind: 'unpocket',
-      frameIndex: frame.index,
-      ballNumber: last.ball,
-    });
-    applyFresh(set, get, match);
+
+    // Case 1: current frame has pocket events — undo the last one.
+    if (frame.events.length > 0) {
+      const last = frame.events[frame.events.length - 1];
+      const { match } = await appendEvent(current.id, {
+        kind: 'unpocket',
+        frameIndex: frame.index,
+        ballNumber: last.ball,
+      });
+      applyFresh(set, get, match);
+      return;
+    }
+
+    // Case 2: current frame is empty. If there's a previous frame, we crossed
+    // a frame boundary (user tapped 'Next Frame' by mistake). Reopen the
+    // previous frame so the user can keep undoing balls or continue.
+    if (current.frames.length > 1) {
+      const { match } = await appendEvent(current.id, {
+        kind: 'unfinish_frame',
+        frameIndex: frame.index,
+      });
+      applyFresh(set, get, match);
+      return;
+    }
+
+    // Case 3: nothing to undo (frame 1, no balls yet).
   },
 
   nextFrame: async () => {

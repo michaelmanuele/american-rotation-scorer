@@ -12,6 +12,11 @@
  *  - frame_end:   the current frame is marked complete and a new frame begins
  *                 on the next pocket event. frame_index points at the frame
  *                 that just ended.
+ *  - unfinish_frame: reverses the most recent frame_end. The just-opened
+ *                 (empty) next frame is dropped and the previous frame is
+ *                 reopened. Only valid when the current frame has no pocket
+ *                 events yet (we don’t want to erase balls the user has
+ *                 already recorded on the new frame).
  *  - match_end:   match completed (race target reached + user confirmed).
  *  - abandon:     match abandoned without saving final result.
  */
@@ -34,6 +39,7 @@ export type MatchEventKind =
   | 'pocket'
   | 'unpocket'
   | 'frame_end'
+  | 'unfinish_frame'
   | 'match_end'
   | 'abandon';
 
@@ -101,6 +107,15 @@ export function replayMatch(init: MatchInit, events: MatchEvent[]): Match {
           events: [],
           breakerSlot: breakerForFrame(init.initialBreakerSlot, nextIndex),
         });
+        break;
+      }
+      case 'unfinish_frame': {
+        // Reopen the previous frame only if the current (last) frame is empty
+        // — replay must not silently drop pocketed balls.
+        if (frames.length < 2 || last.events.length > 0) break;
+        frames.pop();
+        const prev = frames[frames.length - 1];
+        prev.endedAt = undefined;
         break;
       }
       case 'match_end': {

@@ -66,7 +66,7 @@ export const HOW_TO_SECTIONS: RulesSection[] = [
   {
     title: 'Header Controls',
     bullets: [
-      '← Back: undoes your last action within the current frame.',
+      '← Back: undoes your last action. If the current frame is empty, it reopens the previous frame so you can fix a wrong Next Frame tap.',
       'Long-press ← Back: abandons the match (with confirmation).',
       'Next Frame →: advances to the next rack once all 15 balls are pocketed. Available only when the frame is complete.',
       'REF: opens this reference sheet without leaving the match.',

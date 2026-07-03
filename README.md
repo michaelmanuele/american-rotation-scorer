@@ -39,7 +39,7 @@ A native iOS + Android scoring app for **American Rotation** pool.
   - [ ] Ball grid 1–15 with realistic numbered pool balls (solids + stripes)
   - [ ] Tap ball → credits active player; ball colors to player (orange/green)
   - [ ] Tap pocketed ball → un-pocket (per-ball undo)
-  - [ ] Back button → undo last action
+  - [x] Back button → undo last action (crosses frame boundary if current frame empty)
   - [ ] Next Frame (enabled when all 15 pocketed)
   - [ ] Frame timer + match timer
   - [ ] Auto-detect race target reached → End Match / Continue Shooting
