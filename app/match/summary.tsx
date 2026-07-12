@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,11 +9,13 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { colors } from '@/theme/colors';
-import { loadMatchFull } from '@/db/matches';
+import { loadMatchFull, markMatchPostedToChallonge } from '@/db/matches';
 import { playerFramePoints } from '@/domain/rules';
 import { matchTotalsFromFrames } from '@/domain/events';
 import type { Match } from '@/domain/types';
 import { playerFullName } from '@/domain/types';
+import { getApiKey } from '@/services/settings';
+import { ChallongeError, postMatchScore } from '@/services/challonge';
 
 export default function Summary() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -61,6 +63,9 @@ export default function Summary() {
   }
 
   const totals = matchTotalsFromFrames(match.frames);
+  const isFromChallonge =
+    !!match.challongeMatchId && !!match.challongeTournamentSlug;
+  const isCompleted = match.status === 'completed' && match.winnerSlot != null;
   const winnerName =
     match.winnerSlot === 0
       ? playerFullName(match.players[0])
@@ -130,6 +135,10 @@ export default function Summary() {
         />
       </View>
 
+      {isFromChallonge && isCompleted && (
+        <ChallongeCard match={match} totals={totals} onPosted={setMatch} />
+      )}
+
       <Text style={styles.sectionLabel}>FRAME BREAKDOWN</Text>
       {playedFrames.map((f) => {
         const p1 = playerFramePoints(f.events, 0);
@@ -154,6 +163,118 @@ export default function Summary() {
         <Text style={styles.btnText}>Done</Text>
       </Pressable>
     </ScrollView>
+  );
+}
+
+type ChallongeCardStatus =
+  | { kind: 'idle' }
+  | { kind: 'posting' }
+  | { kind: 'error'; message: string };
+
+function ChallongeCard({
+  match,
+  totals,
+  onPosted,
+}: {
+  match: Match;
+  totals: [number, number];
+  onPosted: (m: Match) => void;
+}) {
+  const [status, setStatus] = useState<ChallongeCardStatus>({ kind: 'idle' });
+
+  const p1ChallongeId = match.players[0].challongeParticipantId;
+  const p2ChallongeId = match.players[1].challongeParticipantId;
+  const winnerChallongeId =
+    match.winnerSlot === 0 ? p1ChallongeId : p2ChallongeId;
+
+  const bothLinked = p1ChallongeId != null && p2ChallongeId != null;
+  const alreadyPosted = match.postedToChallongeAt != null;
+
+  const post = useCallback(async () => {
+    if (!match.challongeMatchId || !match.challongeTournamentSlug) return;
+    if (winnerChallongeId == null) {
+      setStatus({
+        kind: 'error',
+        message:
+          'Cannot post: winner is not linked to a Challonge participant. Open Tournaments → Sync Roster and make sure both players are linked.',
+      });
+      return;
+    }
+    setStatus({ kind: 'posting' });
+    try {
+      const apiKey = await getApiKey();
+      if (!apiKey) {
+        setStatus({
+          kind: 'error',
+          message: 'No Challonge API key found. Add one in Settings.',
+        });
+        return;
+      }
+      await postMatchScore(
+        apiKey,
+        match.challongeTournamentSlug,
+        match.challongeMatchId,
+        {
+          p1Score: totals[0],
+          p2Score: totals[1],
+          winnerParticipantId: winnerChallongeId,
+        }
+      );
+      const now = Date.now();
+      await markMatchPostedToChallonge(match.id, now);
+      onPosted({ ...match, postedToChallongeAt: now });
+    } catch (e) {
+      let message = 'Failed to post. Try again in a moment.';
+      if (e instanceof ChallongeError) {
+        if (e.isAuth) message = 'Challonge API key was rejected (401). Update it in Settings.';
+        else if (e.isNotFound) message = 'Match not found on Challonge (404). It may have been reset.';
+        else if (e.isUnprocessable) message = 'Challonge refused this update (422). The match may not be open yet, or the winner id may not match either player.';
+        else if (e.isRateLimit) message = 'Rate-limited by Challonge (429). Wait a few seconds and retry.';
+        else message = `Challonge error ${e.status}. Try again.`;
+      }
+      setStatus({ kind: 'error', message });
+    }
+  }, [match, totals, winnerChallongeId, onPosted]);
+
+  if (alreadyPosted) {
+    const when = new Date(match.postedToChallongeAt!).toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    return (
+      <View style={styles.challongeCard}>
+        <Text style={styles.challongeLabel}>CHALLONGE</Text>
+        <Text style={styles.challongePosted}>✓  Posted to bracket at {when}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.challongeCard}>
+      <Text style={styles.challongeLabel}>CHALLONGE</Text>
+      {!bothLinked && (
+        <Text style={styles.challongeWarn}>
+          One or both players aren’t linked to Challonge yet. Open Tournaments → Sync Roster to link them, then come back.
+        </Text>
+      )}
+      <Pressable
+        style={[
+          styles.challongeBtn,
+          (status.kind === 'posting' || !bothLinked) && styles.challongeBtnDisabled,
+        ]}
+        disabled={status.kind === 'posting' || !bothLinked}
+        onPress={post}
+      >
+        {status.kind === 'posting' ? (
+          <ActivityIndicator color={colors.textPrimary} />
+        ) : (
+          <Text style={styles.challongeBtnText}>POST TO CHALLONGE</Text>
+        )}
+      </Pressable>
+      {status.kind === 'error' && (
+        <Text style={styles.challongeError}>{status.message}</Text>
+      )}
+    </View>
   );
 }
 
@@ -332,4 +453,51 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   btnText: { color: colors.textPrimary, fontWeight: '800', letterSpacing: 1 },
+  challongeCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: '#00E5FF33',
+  },
+  challongeLabel: {
+    color: '#00E5FF',
+    letterSpacing: 2,
+    fontSize: 11,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  challongeWarn: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  challongeBtn: {
+    backgroundColor: '#00E5FF',
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  challongeBtnDisabled: {
+    opacity: 0.35,
+  },
+  challongeBtnText: {
+    color: '#001A22',
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    fontSize: 14,
+  },
+  challongeError: {
+    color: '#FF8888',
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  challongePosted: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });

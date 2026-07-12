@@ -24,6 +24,9 @@ interface MatchRow {
   p1_score: number;
   p2_score: number;
   frames_played: number;
+  challonge_match_id: number | null;
+  challonge_tournament_slug: string | null;
+  posted_to_challonge_at: number | null;
 }
 
 interface EventRow {
@@ -221,7 +224,33 @@ export async function loadMatchFull(matchId: string): Promise<Match | null> {
     initialBreakerSlot: row.initial_breaker_slot as 0 | 1,
     startedAt: row.started_at,
   };
-  return replayMatch(init, events);
+  const replayed = replayMatch(init, events);
+  // Merge Challonge linkage fields from the row (not derived from events).
+  if (row.challonge_match_id != null) {
+    replayed.challongeMatchId = row.challonge_match_id;
+  }
+  if (row.challonge_tournament_slug != null) {
+    replayed.challongeTournamentSlug = row.challonge_tournament_slug;
+  }
+  if (row.posted_to_challonge_at != null) {
+    replayed.postedToChallongeAt = row.posted_to_challonge_at;
+  }
+  return replayed;
+}
+
+/**
+ * Mark a local match as successfully posted to Challonge (stamps the timestamp).
+ * Idempotent — overwriting with a newer timestamp is fine.
+ */
+export async function markMatchPostedToChallonge(
+  matchId: string,
+  at: number = Date.now()
+): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(
+    `UPDATE matches SET posted_to_challonge_at = ? WHERE id = ?`,
+    [at, matchId]
+  );
 }
 
 /**

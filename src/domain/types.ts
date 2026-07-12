@@ -30,6 +30,12 @@ export interface Match {
   status: MatchStatus;
   frames: Frame[];
   winnerSlot?: 0 | 1;
+  /** Challonge match id, if this match was started from a Challonge match. */
+  challongeMatchId?: number;
+  /** Challonge tournament slug, if this match came from Challonge. */
+  challongeTournamentSlug?: string;
+  /** When (epoch ms) the result was successfully posted to Challonge. */
+  postedToChallongeAt?: number;
 }
 
 /** Alternating-break rotation: the breaker switches each frame. */
