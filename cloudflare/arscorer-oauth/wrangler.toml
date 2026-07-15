@@ -1,0 +1,26 @@
+#:schema node_modules/wrangler/config-schema.json
+
+# AMRO Scorer OAuth backend
+# =========================
+# One-time deploy:
+#   1. From this directory: npm install
+#   2. Set secrets (interactive prompts — Wrangler won't show them):
+#        wrangler secret put CHALLONGE_CLIENT_ID
+#        wrangler secret put CHALLONGE_CLIENT_SECRET
+#        wrangler secret put APP_REDIRECT_SCHEME
+#      (APP_REDIRECT_SCHEME value: arscorer://auth-callback)
+#   3. wrangler deploy
+#
+# Your Worker will be reachable at:
+#   https://arscorer-oauth.<your-workers-subdomain>.workers.dev
+#
+# After deploy, take that URL and paste it as the OAuth URL in the
+# Challonge Connect developer portal, appending /callback:
+#   https://arscorer-oauth.<sub>.workers.dev/callback
+
+name = "arscorer-oauth"
+main = "src/index.ts"
+compatibility_date = "2026-07-15"
+
+# No KV, no D1, no dependencies. Just a plain HTTP worker.
+# Requests are stateless — tokens live on the user's device.
