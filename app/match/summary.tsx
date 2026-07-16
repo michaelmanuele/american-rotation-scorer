@@ -14,8 +14,8 @@ import { playerFramePoints } from '@/domain/rules';
 import { matchTotalsFromFrames } from '@/domain/events';
 import type { Match } from '@/domain/types';
 import { playerFullName } from '@/domain/types';
-import { getApiKey } from '@/services/settings';
-import { ChallongeError, postMatchScore } from '@/services/challonge';
+import { isSignedIn } from '@/services/auth';
+import { ChallongeError, NotSignedInError, postMatchScore } from '@/services/challonge';
 
 export default function Summary() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -202,21 +202,29 @@ function ChallongeCard({
     }
     setStatus({ kind: 'posting' });
     try {
-      const apiKey = await getApiKey();
-      if (!apiKey) {
+      if (!(await isSignedIn())) {
         setStatus({
           kind: 'error',
-          message: 'No Challonge API key found. Add one in Settings.',
+          message: 'Not signed in to Challonge. Sign in from Settings.',
+        });
+        return;
+      }
+      if (p1ChallongeId == null || p2ChallongeId == null) {
+        setStatus({
+          kind: 'error',
+          message:
+            'Both players must be linked to Challonge participants before posting. Open Tournaments \u2192 Sync Roster.',
         });
         return;
       }
       await postMatchScore(
-        apiKey,
         match.challongeTournamentSlug,
         match.challongeMatchId,
         {
           p1Score: totals[0],
           p2Score: totals[1],
+          p1ParticipantId: p1ChallongeId,
+          p2ParticipantId: p2ChallongeId,
           winnerParticipantId: winnerChallongeId,
         }
       );
@@ -225,8 +233,11 @@ function ChallongeCard({
       onPosted({ ...match, postedToChallongeAt: now });
     } catch (e) {
       let message = 'Failed to post. Try again in a moment.';
-      if (e instanceof ChallongeError) {
-        if (e.isAuth) message = 'Challonge API key was rejected (401). Update it in Settings.';
+      if (e instanceof NotSignedInError) {
+        message = 'Not signed in to Challonge. Sign in from Settings.';
+      } else if (e instanceof ChallongeError) {
+        if (e.isAuth) message = 'Sign-in expired. Sign in again from Settings.';
+        else if (e.isForbidden) message = 'Challonge refused this update (403). You may not have permission to report scores on this match.';
         else if (e.isNotFound) message = 'Match not found on Challonge (404). It may have been reset.';
         else if (e.isUnprocessable) message = 'Challonge refused this update (422). The match may not be open yet, or the winner id may not match either player.';
         else if (e.isRateLimit) message = 'Rate-limited by Challonge (429). Wait a few seconds and retry.';

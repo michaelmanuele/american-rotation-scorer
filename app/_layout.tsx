@@ -70,7 +70,7 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.bgBottom },
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'AR Scorer' }} />
+        <Stack.Screen name="index" options={{ title: 'AMRO Scorer' }} />
         <Stack.Screen name="match/new" options={{ title: 'New Match' }} />
         <Stack.Screen
           name="match/scoring"
@@ -79,7 +79,7 @@ export default function RootLayout() {
         <Stack.Screen name="match/summary" options={{ title: 'Summary' }} />
         <Stack.Screen name="history" options={{ title: 'History' }} />
         <Stack.Screen name="roster" options={{ title: 'Players' }} />
-        <Stack.Screen name="tournaments" options={{ title: 'Tournaments' }} />
+        <Stack.Screen name="tournaments" options={{ title: 'League' }} />
         <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       </Stack>
     </GestureHandlerRootView>

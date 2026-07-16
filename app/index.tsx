@@ -121,7 +121,7 @@ export default function Home() {
         <MenuButton href="/match/new" label="New Match" primary />
         <MenuButton href="/history" label="History" />
         <MenuButton href="/roster" label="Players" />
-        <MenuButton href="/tournaments" label="Tournaments" />
+        <MenuButton href="/tournaments" label="League" />
       </View>
 
       <View style={styles.rulesRow}>

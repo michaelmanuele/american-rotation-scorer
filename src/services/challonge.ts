@@ -1,27 +1,21 @@
 /**
- * Challonge v1 API client.
+ * Challonge API v2.1 client (OAuth 2.0 / Bearer token).
  *
- * Auth: HTTP Basic, any username, password = your API v1 key (challonge.com/settings/developer).
+ * Auth: OAuth 2.0 access token obtained via services/auth.ts.
  *
- * For v0.2 Phase 1 we only need read access. Phase 3 will add postMatchScore.
+ * v2.1 uses JSON:API format — every response wraps content in
+ * `{ data: { id, type, attributes: {...} } }` (or `{ data: [ ... ] }`).
+ *
+ * Required request headers per Challonge docs
+ * (https://challonge.apidog.io/getting-started-1726706m0):
+ *   Content-Type: application/vnd.api+json
+ *   Accept: application/json
+ *   Authorization-Type: v2
+ *   Authorization: Bearer <access_token>
  */
-import { decode as atob, encode as btoa } from 'base-64';
+import { getValidAccessToken, refreshAccessToken } from '@/services/auth';
 
-const BASE = 'https://api.challonge.com/v1';
-
-// Use the package's btoa/atob shim so this works in React Native (which lacks btoa).
-// We only need btoa here.
-function _btoa(s: string): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const g: any = globalThis;
-  return typeof g.btoa === 'function' ? g.btoa(s) : btoa(s);
-}
-// Silence unused-import lint
-void atob;
-
-function authHeader(apiKey: string): string {
-  return 'Basic ' + _btoa(`x:${apiKey}`);
-}
+const BASE = 'https://api.challonge.com/v2.1';
 
 /** Shape of a Challonge participant we care about. */
 export interface ChallongeParticipant {
@@ -34,7 +28,7 @@ export interface ChallongeParticipant {
 export interface ChallongeMatch {
   id: number;
   round: number;
-  state: 'pending' | 'open' | 'complete';
+  state: 'pending' | 'open' | 'complete' | string;
   player1_id: number | null;
   player2_id: number | null;
   scores_csv: string;
@@ -47,8 +41,8 @@ export interface ChallongeTournament {
   id: number;
   name: string;
   url: string;
-  tournament_type: string; // 'round robin' | 'single elimination' | ...
-  state: string;           // 'pending' | 'underway' | 'complete'
+  tournament_type: string;
+  state: string;
   participants: ChallongeParticipant[];
   matches: ChallongeMatch[];
 }
@@ -62,110 +56,217 @@ export class ChallongeError extends Error {
     this.body = body;
   }
   get isAuth() { return this.status === 401; }
+  get isForbidden() { return this.status === 403; }
   get isNotFound() { return this.status === 404; }
-  get isUnprocessable() { return this.status === 422; } // e.g. tournament not underway
+  get isUnprocessable() { return this.status === 422; }
   get isRateLimit() { return this.status === 429; }
 }
 
+export class NotSignedInError extends Error {
+  constructor() { super('Not signed in to Challonge'); }
+}
+
+// -----------------------------------------------------------------------------
+// HTTP helpers with automatic token refresh on 401
+// -----------------------------------------------------------------------------
+
+interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  body?: unknown;
+}
+
 /**
- * GET /v1/tournaments/{slug}.json with participants + matches included.
- *
- * Returns a flattened, narrowly-typed shape (raw response wraps each object
- * in a redundant top-level key — we strip it).
+ * Make an authenticated Challonge v2.1 request. On 401, refresh the access
+ * token once and retry. Returns parsed JSON, or throws ChallongeError.
  */
-export async function getTournament(
-  apiKey: string,
-  slug: string
-): Promise<ChallongeTournament> {
-  const url = `${BASE}/tournaments/${encodeURIComponent(slug)}.json` +
-    `?include_participants=1&include_matches=1`;
-  const res = await fetch(url, {
-    headers: { Authorization: authHeader(apiKey) },
-  });
+async function api<T = any>(
+  path: string,
+  opts: RequestOptions = {}
+): Promise<T> {
+  const method = opts.method ?? 'GET';
+  const url = `${BASE}${path}`;
+
+  const doFetch = async (token: string) => {
+    return fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/vnd.api+json',
+        Accept: 'application/json',
+        'Authorization-Type': 'v2',
+        Authorization: `Bearer ${token}`,
+      },
+      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+    });
+  };
+
+  let token = await getValidAccessToken();
+  if (!token) throw new NotSignedInError();
+
+  let res = await doFetch(token);
+
+  if (res.status === 401) {
+    // Access token might be revoked or invalidated server-side.
+    // Try a refresh once, then retry.
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      res = await doFetch(refreshed.accessToken);
+    }
+  }
+
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new ChallongeError(res.status, body);
   }
-  const raw = await res.json();
-  const t = raw.tournament;
+
+  // JSON:API bodies are always JSON; empty 204 shouldn't happen for these endpoints.
+  return (await res.json()) as T;
+}
+
+// -----------------------------------------------------------------------------
+// JSON:API shape helpers
+// -----------------------------------------------------------------------------
+
+interface JsonApiObject<TAttrs> {
+  id: string;
+  type: string;
+  attributes: TAttrs;
+  relationships?: Record<string, unknown>;
+}
+interface JsonApiSingle<TAttrs> { data: JsonApiObject<TAttrs>; }
+interface JsonApiList<TAttrs> { data: JsonApiObject<TAttrs>[]; }
+
+interface TournamentAttrs {
+  name: string;
+  url: string;
+  tournament_type: string;
+  state: string;
+}
+
+interface ParticipantAttrs {
+  name?: string;
+  display_name?: string;
+  seed: number;
+}
+
+interface MatchAttrs {
+  round: number;
+  state: string;
+  player1_id: number | null;
+  player2_id: number | null;
+  scores_csv?: string;
+  scores?: Array<{ scores: number[] } | number[]>;
+  score_in_sets?: unknown;
+  winner_id: number | null;
+  identifier: string;
+}
+
+// -----------------------------------------------------------------------------
+// Public API
+// -----------------------------------------------------------------------------
+
+/**
+ * Fetch a tournament by slug or ID, along with its participants and matches.
+ *
+ * v2.1 doesn't support `include_participants=1` / `include_matches=1` query
+ * expansions — we make three parallel calls and merge.
+ */
+export async function getTournament(
+  tournamentIdOrSlug: string
+): Promise<ChallongeTournament> {
+  const t = encodeURIComponent(tournamentIdOrSlug);
+
+  const [tournamentRes, participantsRes, matchesRes] = await Promise.all([
+    api<JsonApiSingle<TournamentAttrs>>(`/tournaments/${t}.json`),
+    api<JsonApiList<ParticipantAttrs>>(`/tournaments/${t}/participants.json`),
+    api<JsonApiList<MatchAttrs>>(`/tournaments/${t}/matches.json`),
+  ]);
+
+  const t0 = tournamentRes.data;
+
   return {
-    id: t.id,
-    name: t.name,
-    url: t.url,
-    tournament_type: t.tournament_type,
-    state: t.state,
-    participants: (t.participants ?? []).map((p: any) => ({
-      id: p.participant.id,
-      name: p.participant.display_name ?? p.participant.name,
-      seed: p.participant.seed,
+    id: Number.parseInt(t0.id, 10),
+    name: t0.attributes.name,
+    url: t0.attributes.url,
+    tournament_type: t0.attributes.tournament_type,
+    state: t0.attributes.state,
+    participants: participantsRes.data.map((p) => ({
+      id: Number.parseInt(p.id, 10),
+      name: p.attributes.display_name ?? p.attributes.name ?? '',
+      seed: p.attributes.seed,
     })),
-    matches: (t.matches ?? []).map((m: any) => ({
-      id: m.match.id,
-      round: m.match.round,
-      state: m.match.state,
-      player1_id: m.match.player1_id,
-      player2_id: m.match.player2_id,
-      scores_csv: m.match.scores_csv ?? '',
-      winner_id: m.match.winner_id,
-      identifier: m.match.identifier,
-    })),
+    matches: matchesRes.data.map((m) => normalizeMatch(m)),
+  };
+}
+
+function normalizeMatch(
+  m: JsonApiObject<MatchAttrs>
+): ChallongeMatch {
+  const a = m.attributes;
+  // v2.1 has richer score representations. For our UI we only need the CSV.
+  // If Challonge already gave us scores_csv, use it; otherwise best-effort
+  // reconstruction is deferred (we mainly care about `state` and `winner_id`).
+  return {
+    id: Number.parseInt(m.id, 10),
+    round: a.round,
+    state: a.state,
+    player1_id: a.player1_id,
+    player2_id: a.player2_id,
+    scores_csv: a.scores_csv ?? '',
+    winner_id: a.winner_id,
+    identifier: a.identifier,
   };
 }
 
 /**
- * PUT /v1/tournaments/{slug}/matches/{matchId}.json
+ * Report a final score for a match.
  *
- * Posts a completed match's score + winner to Challonge. Challonge only
- * accepts writes to matches in state 'open' (i.e. both players determined,
- * and the match is currently live).
+ * v2.1 shape (from Challonge docs, "Update Match" and "Running a Two-Stage
+ * Tournament"): a `data.attributes.match` array where each entry is a
+ * participant's score line. The winning entry gets `advancing: true`.
  *
- * scoresCsv format: '"P1-P2"' e.g. '"120-88"'. For a race-to match Michael
- * only plays one set, so a single CSV entry is what we send.
+ * We collapse race-to-N to a single set: `score_set: "<N>"`.
  */
 export async function postMatchScore(
-  apiKey: string,
-  slug: string,
+  tournamentIdOrSlug: string,
   challongeMatchId: number,
   args: {
     p1Score: number;
     p2Score: number;
+    p1ParticipantId: number;
+    p2ParticipantId: number;
     winnerParticipantId: number;
   }
 ): Promise<ChallongeMatch> {
-  const url =
-    `${BASE}/tournaments/${encodeURIComponent(slug)}` +
+  const path =
+    `/tournaments/${encodeURIComponent(tournamentIdOrSlug)}` +
     `/matches/${challongeMatchId}.json`;
+
   const body = {
-    match: {
-      scores_csv: `${args.p1Score}-${args.p2Score}`,
-      winner_id: args.winnerParticipantId,
+    data: {
+      type: 'Match',
+      attributes: {
+        match: [
+          {
+            participant_id: String(args.p1ParticipantId),
+            score_set: String(args.p1Score),
+            advancing: args.winnerParticipantId === args.p1ParticipantId,
+          },
+          {
+            participant_id: String(args.p2ParticipantId),
+            score_set: String(args.p2Score),
+            advancing: args.winnerParticipantId === args.p2ParticipantId,
+          },
+        ],
+      },
     },
   };
-  const res = await fetch(url, {
+
+  const res = await api<JsonApiSingle<MatchAttrs>>(path, {
     method: 'PUT',
-    headers: {
-      Authorization: authHeader(apiKey),
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(body),
+    body,
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new ChallongeError(res.status, text);
-  }
-  const raw = await res.json();
-  const m = raw.match ?? raw;
-  return {
-    id: m.id,
-    round: m.round,
-    state: m.state,
-    player1_id: m.player1_id,
-    player2_id: m.player2_id,
-    scores_csv: m.scores_csv ?? '',
-    winner_id: m.winner_id,
-    identifier: m.identifier,
-  };
+
+  return normalizeMatch(res.data);
 }
 
 /**
@@ -178,12 +279,9 @@ export async function postMatchScore(
 export function parseTournamentSlug(input: string): string {
   const s = input.trim();
   if (!s) return '';
-  // Strip protocol
   const noProto = s.replace(/^https?:\/\//, '');
-  // After the host, take the last path segment
   const parts = noProto.split('/').filter(Boolean);
   if (parts.length === 0) return '';
-  // If host like challonge.com is first, slug is parts[1]; else parts[0]
   const slug = parts.length === 1 ? parts[0] : parts[parts.length - 1];
   return slug;
 }

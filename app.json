@@ -2,7 +2,7 @@
   "expo": {
     "name": "American Rotation Scorer",
     "slug": "american-rotation-scorer",
-    "version": "0.1.5",
+    "version": "0.2.0",
     "orientation": "default",
     "scheme": "arscorer",
     "userInterfaceStyle": "dark",
@@ -33,7 +33,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
@@ -42,7 +43,8 @@
       "router": {},
       "eas": {
         "projectId": "343155fe-610c-4ddf-b8f4-c2726bbde2b3"
-      }
+      },
+      "oauthBaseUrl": "https://arscorer-oauth.mikeonthefelt.workers.dev"
     }
   }
 }

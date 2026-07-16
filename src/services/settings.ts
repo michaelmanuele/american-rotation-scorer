@@ -1,32 +1,17 @@
 /**
  * App settings for Challonge integration.
  *
- *   - API key:        expo-secure-store (iOS Keychain / Android Keystore)
- *   - Tournament slug: meta table in SQLite (`challonge.slug`)
- *   - My participant id: meta table in SQLite (`challonge.my_participant_id`)
+ * As of v0.2.0 the app authenticates via OAuth 2.0 (see services/auth.ts).
+ * Only tournament identifiers live here now.
+ *
+ *   - Tournament slug:      meta table in SQLite (`challonge.slug`)
+ *   - My participant id:    meta table in SQLite (`challonge.my_participant_id`)
  */
-import * as SecureStore from 'expo-secure-store';
 import { getDB } from '@/db/database';
+import { clearTokens } from '@/services/auth';
 
-const KEY_API_KEY = 'challonge_api_key';
 const META_SLUG = 'challonge.slug';
 const META_MY_PARTICIPANT_ID = 'challonge.my_participant_id';
-
-export async function getApiKey(): Promise<string | null> {
-  try {
-    return await SecureStore.getItemAsync(KEY_API_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export async function setApiKey(apiKey: string): Promise<void> {
-  await SecureStore.setItemAsync(KEY_API_KEY, apiKey.trim());
-}
-
-export async function clearApiKey(): Promise<void> {
-  await SecureStore.deleteItemAsync(KEY_API_KEY).catch(() => {});
-}
 
 async function readMeta(key: string): Promise<string | null> {
   const db = await getDB();
@@ -67,23 +52,24 @@ export async function setMyParticipantId(id: number): Promise<void> {
   await writeMeta(META_MY_PARTICIPANT_ID, String(id));
 }
 
+/**
+ * Disconnect Challonge: wipe OAuth tokens and clear local slug + participant.
+ */
 export async function clearChallongeSettings(): Promise<void> {
-  await clearApiKey();
+  await clearTokens();
   await deleteMeta(META_SLUG);
   await deleteMeta(META_MY_PARTICIPANT_ID);
 }
 
 export interface ChallongeSettings {
-  apiKey: string | null;
   slug: string | null;
   myParticipantId: number | null;
 }
 
 export async function loadChallongeSettings(): Promise<ChallongeSettings> {
-  const [apiKey, slug, myParticipantId] = await Promise.all([
-    getApiKey(),
+  const [slug, myParticipantId] = await Promise.all([
     getTournamentSlug(),
     getMyParticipantId(),
   ]);
-  return { apiKey, slug, myParticipantId };
+  return { slug, myParticipantId };
 }

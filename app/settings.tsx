@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,18 +13,19 @@ import { useFocusEffect } from 'expo-router';
 import { colors } from '@/theme/colors';
 import {
   loadChallongeSettings,
-  setApiKey,
   setMyParticipantId,
   setTournamentSlug,
   clearChallongeSettings,
 } from '@/services/settings';
 import {
   ChallongeError,
+  NotSignedInError,
   getTournament,
   parseTournamentSlug,
   type ChallongeParticipant,
   type ChallongeTournament,
 } from '@/services/challonge';
+import { isSignedIn, signInWithChallonge } from '@/services/auth';
 
 type TestState =
   | { kind: 'idle' }
@@ -33,20 +34,21 @@ type TestState =
   | { kind: 'error'; message: string };
 
 export default function Settings() {
-  const [apiKeyInput, setApiKeyInput] = useState('');
   const [slugInput, setSlugInput] = useState('');
   const [myId, setMyId] = useState<number | null>(null);
-  const [hasSavedKey, setHasSavedKey] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
   const [test, setTest] = useState<TestState>({ kind: 'idle' });
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const s = await loadChallongeSettings();
-    setHasSavedKey(!!s.apiKey);
-    // Don't echo the saved key back into the input — show placeholder instead.
-    setApiKeyInput('');
+    const [s, si] = await Promise.all([
+      loadChallongeSettings(),
+      isSignedIn(),
+    ]);
+    setSignedIn(si);
     setSlugInput(s.slug ?? '');
     setMyId(s.myParticipantId);
     setLoading(false);
@@ -58,28 +60,68 @@ export default function Settings() {
     }, [reload])
   );
 
-  // Effective values used for "Test Connection": fall back to saved if input blank.
+  const onSignIn = async () => {
+    setSigningIn(true);
+    try {
+      const result = await signInWithChallonge();
+      if (!result.ok) {
+        if (result.error !== 'cancelled') {
+          Alert.alert('Sign-in failed', result.error);
+        }
+        return;
+      }
+      await reload();
+      // Auto-test if we already have a slug configured.
+      const s = await loadChallongeSettings();
+      if (s.slug) {
+        void onTest();
+      }
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const onSignOut = () => {
+    Alert.alert(
+      'Sign out of Challonge?',
+      'This removes your Challonge sign-in, tournament slug, and \u201Cthis is me\u201D selection from this device.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out',
+          style: 'destructive',
+          onPress: async () => {
+            await clearChallongeSettings();
+            setTest({ kind: 'idle' });
+            await reload();
+          },
+        },
+      ]
+    );
+  };
+
   const onTest = async () => {
     setTest({ kind: 'testing' });
     try {
-      const s = await loadChallongeSettings();
-      const effectiveKey = apiKeyInput.trim() || s.apiKey || '';
-      const effectiveSlug = parseTournamentSlug(slugInput.trim() || s.slug || '');
-      if (!effectiveKey) {
-        setTest({ kind: 'error', message: 'Enter your Challonge API key.' });
+      if (!(await isSignedIn())) {
+        setTest({ kind: 'error', message: 'Sign in with Challonge first.' });
         return;
       }
+      const s = await loadChallongeSettings();
+      const effectiveSlug = parseTournamentSlug(slugInput.trim() || s.slug || '');
       if (!effectiveSlug) {
         setTest({ kind: 'error', message: 'Enter a tournament URL or slug.' });
         return;
       }
-      const tournament = await getTournament(effectiveKey, effectiveSlug);
+      const tournament = await getTournament(effectiveSlug);
       setTest({ kind: 'ok', tournament });
     } catch (err) {
       const message =
-        err instanceof ChallongeError
+        err instanceof NotSignedInError
+          ? 'Not signed in to Challonge.'
+          : err instanceof ChallongeError
           ? err.isAuth
-            ? 'API key was rejected (401). Double-check the key.'
+            ? 'Sign-in expired. Sign in again.'
             : err.isNotFound
             ? 'Tournament not found (404). Check the slug.'
             : err.message
@@ -93,9 +135,7 @@ export default function Settings() {
   const onSave = async () => {
     setSaving(true);
     try {
-      const key = apiKeyInput.trim();
       const slug = parseTournamentSlug(slugInput.trim());
-      if (key) await setApiKey(key);
       if (slug) await setTournamentSlug(slug);
       await reload();
       Alert.alert('Saved', 'Challonge settings saved.');
@@ -114,25 +154,6 @@ export default function Settings() {
     setMyId(p.id);
   };
 
-  const onClearAll = () => {
-    Alert.alert(
-      'Disconnect Challonge?',
-      'This removes your API key, tournament slug, and "this is me" selection from this device.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Disconnect',
-          style: 'destructive',
-          onPress: async () => {
-            await clearChallongeSettings();
-            setTest({ kind: 'idle' });
-            await reload();
-          },
-        },
-      ]
-    );
-  };
-
   if (loading) {
     return (
       <View style={styles.center}>
@@ -149,24 +170,56 @@ export default function Settings() {
     >
       <Text style={styles.section}>CHALLONGE</Text>
 
-      <Text style={styles.label}>API Key</Text>
-      <TextInput
-        style={styles.input}
-        placeholder={
-          hasSavedKey ? '•••••••••••••• (saved)' : 'Paste your API v1 key'
-        }
-        placeholderTextColor={colors.textTertiary}
-        value={apiKeyInput}
-        onChangeText={setApiKeyInput}
-        autoCapitalize="none"
-        autoCorrect={false}
-        secureTextEntry
-      />
-      <Text style={styles.help}>
-        Get yours at challonge.com → Settings → Developer API.
-      </Text>
+      {/* Sign-in card ------------------------------------------------------ */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Account</Text>
+        {signedIn ? (
+          <>
+            <View style={styles.statusRow}>
+              <View style={styles.statusDotOn} />
+              <Text style={styles.statusText}>Signed in</Text>
+            </View>
+            <Pressable
+              onPress={onSignOut}
+              style={({ pressed }) => [
+                styles.btnSecondary,
+                { marginTop: 12 },
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Text style={styles.btnSecondaryText}>Sign out</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <View style={styles.statusRow}>
+              <View style={styles.statusDotOff} />
+              <Text style={styles.statusText}>Not signed in</Text>
+            </View>
+            <Text style={[styles.help, { marginTop: 6 }]}>
+              Signing in with Challonge lets you post scores directly to the
+              bracket as yourself.
+            </Text>
+            <Pressable
+              onPress={onSignIn}
+              disabled={signingIn}
+              style={({ pressed }) => [
+                styles.btnPrimary,
+                { marginTop: 12 },
+                pressed && { opacity: 0.85 },
+                signingIn && { opacity: 0.6 },
+              ]}
+            >
+              <Text style={styles.btnPrimaryText}>
+                {signingIn ? 'Opening Challonge\u2026' : 'Sign in with Challonge'}
+              </Text>
+            </Pressable>
+          </>
+        )}
+      </View>
 
-      <Text style={[styles.label, { marginTop: 18 }]}>Tournament</Text>
+      {/* Tournament slug --------------------------------------------------- */}
+      <Text style={[styles.label, { marginTop: 24 }]}>Tournament</Text>
       <TextInput
         style={styles.input}
         placeholder="https://challonge.com/your_tournament  or  your_tournament"
@@ -183,15 +236,15 @@ export default function Settings() {
       <View style={styles.btnRow}>
         <Pressable
           onPress={onTest}
-          disabled={test.kind === 'testing'}
+          disabled={test.kind === 'testing' || !signedIn}
           style={({ pressed }) => [
             styles.btnSecondary,
             pressed && { opacity: 0.85 },
-            test.kind === 'testing' && { opacity: 0.6 },
+            (test.kind === 'testing' || !signedIn) && { opacity: 0.4 },
           ]}
         >
           <Text style={styles.btnSecondaryText}>
-            {test.kind === 'testing' ? 'Testing…' : 'Test Connection'}
+            {test.kind === 'testing' ? 'Testing\u2026' : 'Test Connection'}
           </Text>
         </Pressable>
 
@@ -205,7 +258,7 @@ export default function Settings() {
           ]}
         >
           <Text style={styles.btnPrimaryText}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? 'Saving\u2026' : 'Save'}
           </Text>
         </Pressable>
       </View>
@@ -256,18 +309,6 @@ export default function Settings() {
           </View>
         </View>
       )}
-
-      {(hasSavedKey || myId !== null) && (
-        <Pressable
-          onPress={onClearAll}
-          style={({ pressed }) => [
-            styles.disconnect,
-            pressed && { opacity: 0.85 },
-          ]}
-        >
-          <Text style={styles.disconnectText}>Disconnect Challonge</Text>
-        </Pressable>
-      )}
     </ScrollView>
   );
 }
@@ -286,6 +327,39 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 2,
     marginBottom: 14,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 16,
+  },
+  cardTitle: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  statusRow: { flexDirection: 'row', alignItems: 'center' },
+  statusDotOn: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#4ADE80',
+    marginRight: 8,
+  },
+  statusDotOff: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.textTertiary,
+    marginRight: 8,
+  },
+  statusText: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
   },
   label: {
     color: colors.textSecondary,
@@ -371,17 +445,4 @@ const styles = StyleSheet.create({
   rowText: { color: colors.textPrimary, fontSize: 15, flex: 1 },
   rowTextSelected: { fontWeight: '800' },
   check: { color: colors.p1, fontWeight: '800', fontSize: 18 },
-  disconnect: {
-    marginTop: 28,
-    alignSelf: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-  },
-  disconnectText: {
-    color: colors.danger,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    fontSize: 12,
-  },
 });

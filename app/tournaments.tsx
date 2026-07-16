@@ -11,11 +11,13 @@ import { router, useFocusEffect } from 'expo-router';
 import { colors } from '@/theme/colors';
 import {
   ChallongeError,
+  NotSignedInError,
   getTournament,
   type ChallongeMatch,
   type ChallongeParticipant,
   type ChallongeTournament,
 } from '@/services/challonge';
+import { isSignedIn } from '@/services/auth';
 import { loadChallongeSettings } from '@/services/settings';
 import {
   createPlayer,
@@ -49,18 +51,21 @@ export default function Tournaments() {
     setState({ kind: 'loading' });
     setLastSync(null);
     const s = await loadChallongeSettings();
-    if (!s.apiKey || !s.slug) {
+    const signedIn = await isSignedIn();
+    if (!signedIn || !s.slug) {
       setState({ kind: 'no-config' });
       return;
     }
     try {
-      const tournament = await getTournament(s.apiKey, s.slug);
+      const tournament = await getTournament(s.slug);
       setState({ kind: 'ok', tournament, myId: s.myParticipantId });
     } catch (err) {
       const message =
-        err instanceof ChallongeError
+        err instanceof NotSignedInError
+          ? 'Not signed in to Challonge. Sign in from Settings.'
+          : err instanceof ChallongeError
           ? err.isAuth
-            ? 'API key was rejected (401). Check Settings.'
+            ? 'Sign-in expired. Sign in again from Settings.'
             : err.isNotFound
             ? 'Tournament not found (404). Check the slug in Settings.'
             : err.message
@@ -108,7 +113,7 @@ export default function Tournaments() {
       <View style={styles.center}>
         <Text style={styles.emptyTitle}>Not connected</Text>
         <Text style={styles.emptyBody}>
-          Add your Challonge API key and tournament slug in Settings to see the
+          Sign in with Challonge and set your tournament slug in Settings to see the
           roster and upcoming matches.
         </Text>
         <Pressable
