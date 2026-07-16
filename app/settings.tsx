@@ -25,7 +25,7 @@ import {
   type ChallongeParticipant,
   type ChallongeTournament,
 } from '@/services/challonge';
-import { isSignedIn, signInWithChallonge } from '@/services/auth';
+import { isSignedIn, useChallongeSignIn } from '@/services/auth';
 
 type TestState =
   | { kind: 'idle' }
@@ -41,6 +41,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
   const [test, setTest] = useState<TestState>({ kind: 'idle' });
+  const { ready: signInReady, signIn: promptChallongeSignIn } = useChallongeSignIn();
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -61,9 +62,13 @@ export default function Settings() {
   );
 
   const onSignIn = async () => {
+    if (!signInReady) {
+      Alert.alert('Sign-in not ready', 'Please wait a moment and try again.');
+      return;
+    }
     setSigningIn(true);
     try {
-      const result = await signInWithChallonge();
+      const result = await promptChallongeSignIn();
       if (!result.ok) {
         if (result.error !== 'cancelled') {
           Alert.alert('Sign-in failed', result.error);
@@ -202,12 +207,12 @@ export default function Settings() {
             </Text>
             <Pressable
               onPress={onSignIn}
-              disabled={signingIn}
+              disabled={signingIn || !signInReady}
               style={({ pressed }) => [
                 styles.btnPrimary,
                 { marginTop: 12 },
                 pressed && { opacity: 0.85 },
-                signingIn && { opacity: 0.6 },
+                (signingIn || !signInReady) && { opacity: 0.6 },
               ]}
             >
               <Text style={styles.btnPrimaryText}>

@@ -29,6 +29,12 @@
 import Constants from 'expo-constants';
 import * as AuthSession from 'expo-auth-session';
 import * as SecureStore from 'expo-secure-store';
+import * as WebBrowser from 'expo-web-browser';
+import { useCallback } from 'react';
+
+// Required on Android so the browser tab dismisses cleanly after the redirect.
+// No-op on iOS. Safe to call at module scope.
+WebBrowser.maybeCompleteAuthSession();
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -159,70 +165,28 @@ export type SignInResult =
   | { ok: false; error: string };
 
 /**
- * Opens Challonge login in a secure in-app browser, waits for the callback,
- * exchanges the code for tokens via our Worker, and stores them.
- *
- * Must be called from a component (uses AuthSession which needs the browser tab).
+ * Exchange the auth code for tokens via the Worker, then persist them.
+ * Called by the sign-in hook after promptAsync succeeds.
  */
-export async function signInWithChallonge(): Promise<SignInResult> {
+async function exchangeCodeForTokens(
+  code: string,
+  codeVerifier: string
+): Promise<SignInResult> {
   try {
-    const redirectUri = getCallbackUrl();
-
-    // PKCE + state
-    const request = new AuthSession.AuthRequest({
-      clientId: CHALLONGE_CLIENT_ID,
-      redirectUri,
-      scopes: CHALLONGE_SCOPES.split(' '),
-      responseType: AuthSession.ResponseType.Code,
-      usePKCE: true,
-    });
-
-    const discovery: AuthSession.DiscoveryDocument = {
-      authorizationEndpoint: CHALLONGE_AUTHORIZE_URL,
-      // We never call the token endpoint directly; the Worker does. Left null.
-      tokenEndpoint: `${getOauthBaseUrl()}/token`,
-    };
-
-    const result = await request.promptAsync(discovery);
-
-    if (result.type === 'cancel' || result.type === 'dismiss') {
-      return { ok: false, error: 'cancelled' };
-    }
-    if (result.type === 'error') {
-      return {
-        ok: false,
-        error: result.error?.message ?? result.params?.error ?? 'unknown_error',
-      };
-    }
-    if (result.type !== 'success') {
-      return { ok: false, error: `unexpected_result_type:${result.type}` };
-    }
-
-    const code = result.params.code;
-    if (!code) {
-      return { ok: false, error: 'no_authorization_code_returned' };
-    }
-
-    // Exchange via Worker
     const res = await fetch(`${getOauthBaseUrl()}/token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
-      body: JSON.stringify({
-        code,
-        code_verifier: request.codeVerifier,
-      }),
+      body: JSON.stringify({ code, code_verifier: codeVerifier }),
     });
 
     const raw = (await res.json().catch(() => ({}))) as RawTokenResponse;
     if (!res.ok) {
       return {
         ok: false,
-        error:
-          raw.error ??
-          `token_exchange_failed_${res.status}`,
+        error: raw.error ?? `token_exchange_failed_${res.status}`,
       };
     }
 
@@ -233,6 +197,74 @@ export async function signInWithChallonge(): Promise<SignInResult> {
     const msg = e instanceof Error ? e.message : String(e);
     return { ok: false, error: msg };
   }
+}
+
+/**
+ * React hook — must be called at the top level of a component.
+ *
+ * Returns a `signIn()` function that opens Challonge login, waits for the
+ * callback, exchanges the code for tokens, and persists them.
+ *
+ * Uses expo-auth-session's `useAuthRequest` hook because it correctly awaits
+ * the async PKCE code_challenge generation before opening the browser.
+ * Calling `new AuthRequest(...)` synchronously and then `promptAsync()`
+ * silently no-ops on v7 because the request isn't ready.
+ */
+export function useChallongeSignIn(): {
+  ready: boolean;
+  signIn: () => Promise<SignInResult>;
+} {
+  const [request, , promptAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: CHALLONGE_CLIENT_ID,
+      redirectUri: getCallbackUrl(),
+      scopes: CHALLONGE_SCOPES.split(' '),
+      responseType: AuthSession.ResponseType.Code,
+      usePKCE: true,
+    },
+    {
+      authorizationEndpoint: CHALLONGE_AUTHORIZE_URL,
+      tokenEndpoint: `${getOauthBaseUrl()}/token`,
+    }
+  );
+
+  const signIn = useCallback(async (): Promise<SignInResult> => {
+    if (!request) {
+      return { ok: false, error: 'auth_request_not_ready' };
+    }
+    try {
+      const result = await promptAsync();
+
+      if (result.type === 'cancel' || result.type === 'dismiss') {
+        return { ok: false, error: 'cancelled' };
+      }
+      if (result.type === 'error') {
+        return {
+          ok: false,
+          error:
+            result.error?.message ?? result.params?.error ?? 'unknown_error',
+        };
+      }
+      if (result.type !== 'success') {
+        return { ok: false, error: `unexpected_result_type:${result.type}` };
+      }
+
+      const code = result.params.code;
+      if (!code) {
+        return { ok: false, error: 'no_authorization_code_returned' };
+      }
+      if (!request.codeVerifier) {
+        return { ok: false, error: 'pkce_verifier_missing' };
+      }
+
+      return exchangeCodeForTokens(code, request.codeVerifier);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, error: msg };
+    }
+  }, [request, promptAsync]);
+
+  return { ready: request !== null, signIn };
 }
 
 /**
