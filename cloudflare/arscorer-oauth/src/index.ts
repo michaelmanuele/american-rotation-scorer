@@ -38,6 +38,8 @@
  *                              (the URL the app registered for deep links)
  */
 
+import { handlePrivacy, handleTerms } from './legal';
+
 export interface Env {
   CHALLONGE_CLIENT_ID: string;
   CHALLONGE_CLIENT_SECRET: string;
@@ -243,6 +245,12 @@ export default {
 
     if (req.method === 'GET' && url.pathname === '/health') {
       return handleHealth();
+    }
+    if (req.method === 'GET' && (url.pathname === '/privacy' || url.pathname === '/privacy.html')) {
+      return handlePrivacy();
+    }
+    if (req.method === 'GET' && (url.pathname === '/terms' || url.pathname === '/terms.html')) {
+      return handleTerms();
     }
     if (req.method === 'GET' && url.pathname === '/callback') {
       return handleCallback(req, env);
