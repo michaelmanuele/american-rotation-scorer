@@ -145,29 +145,22 @@ async function handleTokenExchange(
     return json({ error: 'missing_code_or_verifier' }, 400);
   }
 
-  const form = new URLSearchParams({
+  // Challonge's docs (apidog) show params in the query string, not the body.
+  // Also try Basic auth for client credentials.
+  const qs = new URLSearchParams({
     grant_type: 'authorization_code',
+    client_id: env.CHALLONGE_CLIENT_ID,
+    client_secret: env.CHALLONGE_CLIENT_SECRET,
     code,
     code_verifier: codeVerifier,
-    // The redirect_uri submitted here must match what the app used to
-    // start the authorization request. The app uses this Worker's /callback.
     redirect_uri: `${selfOrigin(req)}/callback`,
   });
 
-  // Challonge requires HTTP Basic auth for client credentials on /oauth/token;
-  // passing client_id/client_secret in the body returns 401 invalid_request.
-  const basicAuth = btoa(
-    `${env.CHALLONGE_CLIENT_ID}:${env.CHALLONGE_CLIENT_SECRET}`
-  );
-
-  const upstream = await fetch(CHALLONGE_TOKEN_URL, {
+  const upstream = await fetch(`${CHALLONGE_TOKEN_URL}?${qs.toString()}`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
-      Authorization: `Basic ${basicAuth}`,
     },
-    body: form.toString(),
   });
 
   const upstreamText = await upstream.text();
@@ -177,7 +170,7 @@ async function handleTokenExchange(
   console.log('[token] challonge body:', upstreamText);
   console.log('[token] sent params:', JSON.stringify({
     grant_type: 'authorization_code',
-    client_auth: 'HTTP Basic header',
+    client_auth: 'query string params',
     client_id_len: env.CHALLONGE_CLIENT_ID.length,
     code_len: code.length,
     code_verifier_len: codeVerifier.length,
@@ -217,23 +210,18 @@ async function handleTokenRefresh(
     return json({ error: 'missing_refresh_token' }, 400);
   }
 
-  const form = new URLSearchParams({
+  const qs = new URLSearchParams({
     grant_type: 'refresh_token',
+    client_id: env.CHALLONGE_CLIENT_ID,
+    client_secret: env.CHALLONGE_CLIENT_SECRET,
     refresh_token: refreshToken,
   });
 
-  const basicAuth = btoa(
-    `${env.CHALLONGE_CLIENT_ID}:${env.CHALLONGE_CLIENT_SECRET}`
-  );
-
-  const upstream = await fetch(CHALLONGE_TOKEN_URL, {
+  const upstream = await fetch(`${CHALLONGE_TOKEN_URL}?${qs.toString()}`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
-      Authorization: `Basic ${basicAuth}`,
     },
-    body: form.toString(),
   });
 
   const upstreamText = await upstream.text();
