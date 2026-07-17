@@ -233,10 +233,15 @@ export function useChallongeSignIn(): {
       return { ok: false, error: 'auth_request_not_ready' };
     }
     try {
+      // DEBUG v0.2.2: log the URL we're about to open
+      console.log('[auth] redirectUri:', getCallbackUrl());
+      console.log('[auth] authorizeUrl:', CHALLONGE_AUTHORIZE_URL);
+      console.log('[auth] scopes:', CHALLONGE_SCOPES);
       const result = await promptAsync();
+      console.log('[auth] promptAsync result:', JSON.stringify(result));
 
       if (result.type === 'cancel' || result.type === 'dismiss') {
-        return { ok: false, error: 'cancelled' };
+        return { ok: false, error: `${result.type} (redirectUri=${getCallbackUrl()})` };
       }
       if (result.type === 'error') {
         return {

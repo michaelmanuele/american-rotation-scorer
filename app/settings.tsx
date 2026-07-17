@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import Constants from 'expo-constants';
 import {
   ActivityIndicator,
   Alert,
@@ -68,19 +69,22 @@ export default function Settings() {
     }
     setSigningIn(true);
     try {
+      // DEBUG: always surface the result so we can see what's happening.
       const result = await promptChallongeSignIn();
       if (!result.ok) {
-        if (result.error !== 'cancelled') {
-          Alert.alert('Sign-in failed', result.error);
-        }
+        Alert.alert('Sign-in result', `Not OK: ${result.error}`);
         return;
       }
+      Alert.alert('Sign-in result', 'Success \u2014 tokens saved.');
       await reload();
       // Auto-test if we already have a slug configured.
       const s = await loadChallongeSettings();
       if (s.slug) {
         void onTest();
       }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert('Sign-in threw', msg);
     } finally {
       setSigningIn(false);
     }
@@ -314,11 +318,35 @@ export default function Settings() {
           </View>
         </View>
       )}
+
+      <View style={styles.versionRow}>
+        <Text style={styles.versionText}>
+          v{Constants.expoConfig?.version ?? '?'}
+          {'  \u00b7  build '}
+          {Constants.expoConfig?.ios?.buildNumber ?? '?'}
+        </Text>
+        <Text style={[styles.versionText, { marginTop: 4, fontSize: 10 }]}>
+          OAuth base: {(Constants.expoConfig?.extra as any)?.oauthBaseUrl ?? '(missing)'}
+        </Text>
+        <Text style={[styles.versionText, { marginTop: 2, fontSize: 10 }]}>
+          Scheme: {Constants.expoConfig?.scheme as string ?? '(missing)'}
+        </Text>
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  versionRow: {
+    marginTop: 32,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  versionText: {
+    color: colors.textTertiary,
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
   container: { flex: 1 },
   content: { padding: 20, paddingBottom: 60 },
   center: {
