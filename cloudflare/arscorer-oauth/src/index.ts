@@ -145,27 +145,25 @@ async function handleTokenExchange(
     return json({ error: 'missing_code_or_verifier' }, 400);
   }
 
-  // Send params in BOTH query string and body — Challonge seems to require this
-  // when the request comes from a Cloudflare Worker to a Cloudflare-fronted origin.
+  // Match Challonge's OpenAPI spec exactly — only code/client_id/grant_type/redirect_uri
+  // in the query string. client_secret goes in the Authorization header (Basic auth).
+  // No code_verifier — Challonge's docs don't include PKCE in the token exchange.
   const params: Record<string, string> = {
     grant_type: 'authorization_code',
     client_id: env.CHALLONGE_CLIENT_ID,
-    client_secret: env.CHALLONGE_CLIENT_SECRET,
     code,
-    code_verifier: codeVerifier,
     redirect_uri: `${selfOrigin(req)}/callback`,
   };
   const qs = new URLSearchParams(params);
-  const body = new URLSearchParams(params);
+  const basicAuth = btoa(`${env.CHALLONGE_CLIENT_ID}:${env.CHALLONGE_CLIENT_SECRET}`);
 
   const upstream = await fetch(`${CHALLONGE_TOKEN_URL}?${qs.toString()}`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
+      Authorization: `Basic ${basicAuth}`,
       'User-Agent': 'arscorer-oauth/1.0',
     },
-    body: body.toString(),
   });
 
   const upstreamText = await upstream.text();
@@ -174,10 +172,10 @@ async function handleTokenExchange(
   console.log('[token] challonge status:', upstream.status);
   console.log('[token] challonge body:', upstreamText);
   console.log('[token] code (first 8):', code.slice(0, 8), '(last 4):', code.slice(-4));
-  console.log('[token] full URL:', `${CHALLONGE_TOKEN_URL}?${qs.toString()}`.replace(env.CHALLONGE_CLIENT_SECRET, '[SECRET]'));
+  console.log('[token] full URL:', `${CHALLONGE_TOKEN_URL}?${qs.toString()}`);
   console.log('[token] sent params:', JSON.stringify({
     grant_type: 'authorization_code',
-    client_auth: 'query string + body + UA',
+    client_auth: 'Basic header + query params, no PKCE',
     client_id_len: env.CHALLONGE_CLIENT_ID.length,
     code_len: code.length,
     code_verifier_len: codeVerifier.length,
