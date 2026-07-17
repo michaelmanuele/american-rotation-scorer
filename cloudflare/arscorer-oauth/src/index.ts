@@ -168,6 +168,8 @@ async function handleTokenExchange(
   // Diagnostic logging (visible via `wrangler tail`). Never log the client_secret.
   console.log('[token] challonge status:', upstream.status);
   console.log('[token] challonge body:', upstreamText);
+  console.log('[token] code (first 8):', code.slice(0, 8), '(last 4):', code.slice(-4));
+  console.log('[token] full URL:', `${CHALLONGE_TOKEN_URL}?${qs.toString()}`.replace(env.CHALLONGE_CLIENT_SECRET, '[SECRET]'));
   console.log('[token] sent params:', JSON.stringify({
     grant_type: 'authorization_code',
     client_auth: 'query string params',
