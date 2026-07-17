@@ -220,9 +220,11 @@ async function exchangeCodeForTokens(
 
     const raw = (await res.json().catch(() => ({}))) as RawTokenResponse;
     if (!res.ok) {
+      const errCode = raw.error ?? `token_exchange_failed_${res.status}`;
+      const errDesc = raw.error_description ? ` — ${raw.error_description}` : '';
       return {
         ok: false,
-        error: raw.error ?? `token_exchange_failed_${res.status}`,
+        error: `${errCode}${errDesc}`,
       };
     }
 

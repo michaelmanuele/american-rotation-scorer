@@ -166,6 +166,19 @@ async function handleTokenExchange(
   });
 
   const upstreamText = await upstream.text();
+
+  // Diagnostic logging (visible via `wrangler tail`). Never log the client_secret.
+  console.log('[token] challonge status:', upstream.status);
+  console.log('[token] challonge body:', upstreamText);
+  console.log('[token] sent params:', JSON.stringify({
+    grant_type: 'authorization_code',
+    client_id: env.CHALLONGE_CLIENT_ID,
+    client_secret: '[REDACTED]',
+    code_len: code.length,
+    code_verifier_len: codeVerifier.length,
+    redirect_uri: `${selfOrigin(req)}/callback`,
+  }));
+
   // Pass Challonge's response straight through so the app can log errors.
   return new Response(upstreamText, {
     status: upstream.status,
