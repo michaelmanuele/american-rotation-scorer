@@ -147,8 +147,6 @@ async function handleTokenExchange(
 
   const form = new URLSearchParams({
     grant_type: 'authorization_code',
-    client_id: env.CHALLONGE_CLIENT_ID,
-    client_secret: env.CHALLONGE_CLIENT_SECRET,
     code,
     code_verifier: codeVerifier,
     // The redirect_uri submitted here must match what the app used to
@@ -156,11 +154,18 @@ async function handleTokenExchange(
     redirect_uri: `${selfOrigin(req)}/callback`,
   });
 
+  // Challonge requires HTTP Basic auth for client credentials on /oauth/token;
+  // passing client_id/client_secret in the body returns 401 invalid_request.
+  const basicAuth = btoa(
+    `${env.CHALLONGE_CLIENT_ID}:${env.CHALLONGE_CLIENT_SECRET}`
+  );
+
   const upstream = await fetch(CHALLONGE_TOKEN_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
+      Authorization: `Basic ${basicAuth}`,
     },
     body: form.toString(),
   });
@@ -214,16 +219,19 @@ async function handleTokenRefresh(
 
   const form = new URLSearchParams({
     grant_type: 'refresh_token',
-    client_id: env.CHALLONGE_CLIENT_ID,
-    client_secret: env.CHALLONGE_CLIENT_SECRET,
     refresh_token: refreshToken,
   });
+
+  const basicAuth = btoa(
+    `${env.CHALLONGE_CLIENT_ID}:${env.CHALLONGE_CLIENT_SECRET}`
+  );
 
   const upstream = await fetch(CHALLONGE_TOKEN_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
+      Authorization: `Basic ${basicAuth}`,
     },
     body: form.toString(),
   });
