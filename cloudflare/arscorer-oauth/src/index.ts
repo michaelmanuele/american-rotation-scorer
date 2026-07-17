@@ -145,22 +145,27 @@ async function handleTokenExchange(
     return json({ error: 'missing_code_or_verifier' }, 400);
   }
 
-  // Challonge's docs (apidog) show params in the query string, not the body.
-  // Also try Basic auth for client credentials.
-  const qs = new URLSearchParams({
+  // Send params in BOTH query string and body — Challonge seems to require this
+  // when the request comes from a Cloudflare Worker to a Cloudflare-fronted origin.
+  const params: Record<string, string> = {
     grant_type: 'authorization_code',
     client_id: env.CHALLONGE_CLIENT_ID,
     client_secret: env.CHALLONGE_CLIENT_SECRET,
     code,
     code_verifier: codeVerifier,
     redirect_uri: `${selfOrigin(req)}/callback`,
-  });
+  };
+  const qs = new URLSearchParams(params);
+  const body = new URLSearchParams(params);
 
   const upstream = await fetch(`${CHALLONGE_TOKEN_URL}?${qs.toString()}`, {
     method: 'POST',
     headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
       Accept: 'application/json',
+      'User-Agent': 'arscorer-oauth/1.0',
     },
+    body: body.toString(),
   });
 
   const upstreamText = await upstream.text();
@@ -172,7 +177,7 @@ async function handleTokenExchange(
   console.log('[token] full URL:', `${CHALLONGE_TOKEN_URL}?${qs.toString()}`.replace(env.CHALLONGE_CLIENT_SECRET, '[SECRET]'));
   console.log('[token] sent params:', JSON.stringify({
     grant_type: 'authorization_code',
-    client_auth: 'query string params',
+    client_auth: 'query string + body + UA',
     client_id_len: env.CHALLONGE_CLIENT_ID.length,
     code_len: code.length,
     code_verifier_len: codeVerifier.length,
