@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import Constants from 'expo-constants';
+import * as Application from 'expo-application';
 import {
   ActivityIndicator,
   Alert,
@@ -321,9 +322,9 @@ export default function Settings() {
 
       <View style={styles.versionRow}>
         <Text style={styles.versionText}>
-          v{Constants.expoConfig?.version ?? '?'}
+          v{Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '?'}
           {'  \u00b7  build '}
-          {Constants.expoConfig?.ios?.buildNumber ?? '?'}
+          {Application.nativeBuildVersion ?? '?'}
         </Text>
         <Text style={[styles.versionText, { marginTop: 4, fontSize: 10 }]}>
           OAuth base: {(Constants.expoConfig?.extra as any)?.oauthBaseUrl ?? '(missing)'}

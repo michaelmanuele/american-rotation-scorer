@@ -27,14 +27,50 @@
  * 401 by the Challonge v2.1 client.
  */
 import Constants from 'expo-constants';
-import * as AuthSession from 'expo-auth-session';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
-import { useCallback } from 'react';
+import * as Crypto from 'expo-crypto';
+import { useCallback, useState } from 'react';
 
 // Required on Android so the browser tab dismisses cleanly after the redirect.
 // No-op on iOS. Safe to call at module scope.
 WebBrowser.maybeCompleteAuthSession();
+
+// -----------------------------------------------------------------------------
+// PKCE helpers (RFC 7636)
+// -----------------------------------------------------------------------------
+
+function base64UrlEncode(bytes: Uint8Array): string {
+  // btoa isn't available in RN so build from binary string manually.
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  // btoa IS available in Hermes / modern RN, but fall back defensively.
+  const b64 =
+    typeof btoa === 'function'
+      ? btoa(binary)
+      : Buffer.from(binary, 'binary').toString('base64');
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function generatePkcePair(): Promise<{
+  verifier: string;
+  challenge: string;
+}> {
+  const randomBytes = Crypto.getRandomBytes(32);
+  const verifier = base64UrlEncode(randomBytes);
+  const digest = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    verifier,
+    { encoding: Crypto.CryptoEncoding.BASE64 }
+  );
+  const challenge = digest
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  return { verifier, challenge };
+}
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -200,76 +236,95 @@ async function exchangeCodeForTokens(
 }
 
 /**
- * React hook — must be called at the top level of a component.
+ * The app-facing return URL. iOS's ASWebAuthenticationSession will close the
+ * browser and return control to the app the moment the WebView tries to load
+ * a URL matching this scheme.
+ */
+const APP_RETURN_URL = 'arscorer://auth-callback';
+
+/**
+ * React hook — exposes a `signIn()` function that opens Challonge in the
+ * secure in-app browser, waits for the redirect back to the app scheme, and
+ * exchanges the returned code for tokens via the Worker.
  *
- * Returns a `signIn()` function that opens Challonge login, waits for the
- * callback, exchanges the code for tokens, and persists them.
+ * Architecture:
+ *   1. App builds a PKCE code_verifier + code_challenge (SHA256).
+ *   2. App opens ASWebAuthenticationSession with the Challonge /oauth/authorize
+ *      URL. Challonge sees redirect_uri = the HTTPS Worker /callback URL
+ *      (Challonge Connect only accepts HTTPS redirect URIs).
+ *   3. User logs in. Challonge 302s to the Worker's /callback.
+ *   4. The Worker 302s to arscorer://auth-callback?code=...
+ *   5. ASWebAuthenticationSession sees the arscorer:// scheme, closes the
+ *      browser, and returns { type: 'success', url: 'arscorer://...?code=' }
+ *      to the app. This is why we pass APP_RETURN_URL as the second arg to
+ *      openAuthSessionAsync — the two URLs (Challonge redirect_uri vs the
+ *      "scheme to catch" for the browser session) are intentionally different.
+ *   6. App calls the Worker's /token endpoint with { code, code_verifier }.
+ *   7. Worker exchanges with Challonge (using client_secret) and returns tokens.
  *
- * Uses expo-auth-session's `useAuthRequest` hook because it correctly awaits
- * the async PKCE code_challenge generation before opening the browser.
- * Calling `new AuthRequest(...)` synchronously and then `promptAsync()`
- * silently no-ops on v7 because the request isn't ready.
+ * This mirrors the pattern used by e.g. Supabase OAuth, and avoids
+ * expo-auth-session's useAuthRequest which enforces a single redirectUri.
  */
 export function useChallongeSignIn(): {
   ready: boolean;
   signIn: () => Promise<SignInResult>;
 } {
-  const [request, , promptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: CHALLONGE_CLIENT_ID,
-      redirectUri: getCallbackUrl(),
-      scopes: CHALLONGE_SCOPES.split(' '),
-      responseType: AuthSession.ResponseType.Code,
-      usePKCE: true,
-    },
-    {
-      authorizationEndpoint: CHALLONGE_AUTHORIZE_URL,
-      tokenEndpoint: `${getOauthBaseUrl()}/token`,
-    }
-  );
+  // No async prep needed — always ready. We keep the flag for API stability
+  // with the earlier hook signature the settings screen consumes.
+  const [ready] = useState(true);
 
   const signIn = useCallback(async (): Promise<SignInResult> => {
-    if (!request) {
-      return { ok: false, error: 'auth_request_not_ready' };
-    }
     try {
-      // DEBUG v0.2.2: log the URL we're about to open
-      console.log('[auth] redirectUri:', getCallbackUrl());
-      console.log('[auth] authorizeUrl:', CHALLONGE_AUTHORIZE_URL);
-      console.log('[auth] scopes:', CHALLONGE_SCOPES);
-      const result = await promptAsync();
-      console.log('[auth] promptAsync result:', JSON.stringify(result));
+      const workerCallback = getCallbackUrl();
+      const { verifier, challenge } = await generatePkcePair();
+
+      const authorizeUrl =
+        `${CHALLONGE_AUTHORIZE_URL}` +
+        `?client_id=${encodeURIComponent(CHALLONGE_CLIENT_ID)}` +
+        `&response_type=code` +
+        `&redirect_uri=${encodeURIComponent(workerCallback)}` +
+        `&scope=${encodeURIComponent(CHALLONGE_SCOPES)}` +
+        `&code_challenge=${encodeURIComponent(challenge)}` +
+        `&code_challenge_method=S256`;
+
+      console.log('[auth] authorizeUrl:', authorizeUrl);
+      console.log('[auth] APP_RETURN_URL:', APP_RETURN_URL);
+
+      const result = await WebBrowser.openAuthSessionAsync(
+        authorizeUrl,
+        APP_RETURN_URL
+      );
+      console.log('[auth] browser result:', JSON.stringify(result));
 
       if (result.type === 'cancel' || result.type === 'dismiss') {
-        return { ok: false, error: `${result.type} (redirectUri=${getCallbackUrl()})` };
-      }
-      if (result.type === 'error') {
         return {
           ok: false,
-          error:
-            result.error?.message ?? result.params?.error ?? 'unknown_error',
+          error: `${result.type} (workerCallback=${workerCallback}, appReturn=${APP_RETURN_URL})`,
         };
       }
-      if (result.type !== 'success') {
-        return { ok: false, error: `unexpected_result_type:${result.type}` };
+      if (result.type !== 'success' || !result.url) {
+        return { ok: false, error: `unexpected_result:${result.type}` };
       }
 
-      const code = result.params.code;
+      // Parse the code out of arscorer://auth-callback?code=...
+      const returned = new URL(result.url);
+      const code = returned.searchParams.get('code');
+      const oauthError = returned.searchParams.get('error');
+      if (oauthError) {
+        return { ok: false, error: `oauth_error:${oauthError}` };
+      }
       if (!code) {
-        return { ok: false, error: 'no_authorization_code_returned' };
-      }
-      if (!request.codeVerifier) {
-        return { ok: false, error: 'pkce_verifier_missing' };
+        return { ok: false, error: 'no_code_in_return_url' };
       }
 
-      return exchangeCodeForTokens(code, request.codeVerifier);
+      return exchangeCodeForTokens(code, verifier);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       return { ok: false, error: msg };
     }
-  }, [request, promptAsync]);
+  }, []);
 
-  return { ready: request !== null, signIn };
+  return { ready, signIn };
 }
 
 /**
