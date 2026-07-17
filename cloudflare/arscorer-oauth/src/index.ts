@@ -177,8 +177,8 @@ async function handleTokenExchange(
   console.log('[token] challonge body:', upstreamText);
   console.log('[token] sent params:', JSON.stringify({
     grant_type: 'authorization_code',
-    client_id: env.CHALLONGE_CLIENT_ID,
-    client_secret: '[REDACTED]',
+    client_auth: 'HTTP Basic header',
+    client_id_len: env.CHALLONGE_CLIENT_ID.length,
     code_len: code.length,
     code_verifier_len: codeVerifier.length,
     redirect_uri: `${selfOrigin(req)}/callback`,
