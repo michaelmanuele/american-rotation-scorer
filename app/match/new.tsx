@@ -8,11 +8,27 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as Crypto from 'expo-crypto';
 import { useMatchStore } from '@/store/matchStore';
 import { colors } from '@/theme/colors';
 import { playerFullName, playerInitials, type Player } from '@/domain/types';
 import { PlayerPicker } from '@/components/PlayerPicker';
 import { findPlayerByChallongeId } from '@/db/players';
+
+/**
+ * Cryptographically random coin flip using expo-crypto (which taps the
+ * platform CSPRNG on iOS / Android). Returns 0 or 1 with true 50/50
+ * probability — unlike Math.random(), which is a fast PRNG whose statistical
+ * properties, while good in practice, can drift under unusual conditions and
+ * are impossible to reason about with total confidence.
+ *
+ * Implementation: read one random byte, keep the low bit. The low bit of a
+ * uniform random byte is itself uniformly distributed.
+ */
+function cryptoCoinFlip(): 0 | 1 {
+  const [byte] = Crypto.getRandomBytes(1);
+  return (byte & 1) as 0 | 1;
+}
 
 /**
  * New-match setup using the roster-backed PlayerPicker.
@@ -84,7 +100,7 @@ export default function NewMatch() {
     if (!p1 || !p2) return;
     const players: [Player, Player] = [p1, p2];
     const target = Number.parseInt(raceTo, 10);
-    const tossWinner: 0 | 1 = Math.random() < 0.5 ? 0 : 1;
+    const tossWinner: 0 | 1 = cryptoCoinFlip();
     const tossLoser: 0 | 1 = tossWinner === 0 ? 1 : 0;
     const winnerName = playerFullName(players[tossWinner]);
     const loserName = playerFullName(players[tossLoser]);
