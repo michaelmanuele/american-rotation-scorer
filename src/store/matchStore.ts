@@ -38,6 +38,12 @@ interface MatchState {
   events: MatchEvent[];
   /** True once a hydration attempt at boot has completed. */
   hydrated: boolean;
+  /**
+   * Which frame the user is currently viewing/editing.
+   * null → latest frame (default). Non-null → an earlier frame index.
+   * Reset to null whenever the match reloads or a new frame is created.
+   */
+  viewedFrameIndex: number | null;
 
   // Lifecycle
   hydrateFromDB: () => Promise<void>;
@@ -48,18 +54,23 @@ interface MatchState {
   setActiveSlot: (slot: 0 | 1) => void;
   pocketBall: (ball: number) => Promise<void>;
   unpocketBall: (ball: number) => Promise<void>;
-  undoLast: () => Promise<void>;
   nextFrame: () => Promise<void>;
   endMatch: () => Promise<Match | null>;
   abandonMatch: () => Promise<void>;
 
-  // Selectors
+  // Frame navigation
+  goBackFrame: () => void;
+  canGoBackFrame: () => boolean;
+  isViewingHistoricalFrame: () => boolean;
+
+  // Selectors (all respect viewedFrameIndex)
   currentFrame: () => Frame | null;
   currentBreakerSlot: () => 0 | 1 | null;
   matchTotals: () => [number, number];
   frameTotals: () => [number, number];
   pocketedBy: () => Record<number, 0 | 1 | undefined>;
   isCurrentFrameComplete: () => boolean;
+  isLatestFrame: () => boolean;
   winnerSlot: () => 0 | 1 | null;
 }
 
@@ -68,6 +79,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   activeSlot: 0,
   events: [],
   hydrated: false,
+  viewedFrameIndex: null,
 
   /**
    * Boot-time hydration: if an in-progress match exists in the DB, load and
@@ -82,6 +94,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
           current: match,
           activeSlot: activeSlotFromMatch(match),
           events: [], // not strictly needed; we never read these without reloading
+          viewedFrameIndex: null,
         });
       }
     } finally {
@@ -119,6 +132,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
         current: fresh,
         events: [],
         activeSlot: activeSlotFromMatch(fresh),
+        viewedFrameIndex: null,
       });
     }
   },
@@ -130,6 +144,7 @@ export const useMatchStore = create<MatchState>((set, get) => ({
       current: match,
       activeSlot: activeSlotFromMatch(match),
       events: [],
+      viewedFrameIndex: null,
     });
   },
 
@@ -138,7 +153,8 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   pocketBall: async (ball) => {
     const { current, activeSlot } = get();
     if (!current) return;
-    const frame = current.frames[current.frames.length - 1];
+    const frame = viewedFrame(get());
+    if (!frame) return;
     if (frame.events.some((e) => e.ball === ball)) return; // already pocketed
     const { match } = await appendEvent(current.id, {
       kind: 'pocket',
@@ -152,7 +168,8 @@ export const useMatchStore = create<MatchState>((set, get) => ({
   unpocketBall: async (ball) => {
     const { current } = get();
     if (!current) return;
-    const frame = current.frames[current.frames.length - 1];
+    const frame = viewedFrame(get());
+    if (!frame) return;
     if (!frame.events.some((e) => e.ball === ball)) return;
     const { match } = await appendEvent(current.id, {
       kind: 'unpocket',
@@ -162,42 +179,28 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     applyFresh(set, get, match);
   },
 
-  undoLast: async () => {
-    const { current } = get();
-    if (!current) return;
-    const frame = current.frames[current.frames.length - 1];
-
-    // Case 1: current frame has pocket events — undo the last one.
-    if (frame.events.length > 0) {
-      const last = frame.events[frame.events.length - 1];
-      const { match } = await appendEvent(current.id, {
-        kind: 'unpocket',
-        frameIndex: frame.index,
-        ballNumber: last.ball,
-      });
-      applyFresh(set, get, match);
-      return;
-    }
-
-    // Case 2: current frame is empty. If there's a previous frame, we crossed
-    // a frame boundary (user tapped 'Next Frame' by mistake). Reopen the
-    // previous frame so the user can keep undoing balls or continue.
-    if (current.frames.length > 1) {
-      const { match } = await appendEvent(current.id, {
-        kind: 'unfinish_frame',
-        frameIndex: frame.index,
-      });
-      applyFresh(set, get, match);
-      return;
-    }
-
-    // Case 3: nothing to undo (frame 1, no balls yet).
-  },
-
+  /**
+   * Next Frame button. Context-aware:
+   *  - Viewing a historical frame → move the viewed index forward one.
+   *  - Viewing the latest frame and it's complete → create a new frame.
+   *  - Viewing the latest frame and it's incomplete → no-op (button is disabled in UI).
+   */
   nextFrame: async () => {
-    const { current } = get();
+    const { current, viewedFrameIndex } = get();
     if (!current) return;
-    const frame = current.frames[current.frames.length - 1];
+    const latestIndex = current.frames.length - 1;
+    const viewing = viewedFrameIndex ?? latestIndex;
+
+    // Case A: historical frame — just navigate forward.
+    if (viewing < latestIndex) {
+      const nextIndex = viewing + 1;
+      // If we've reached the latest, drop back to "following latest" mode.
+      set({ viewedFrameIndex: nextIndex >= latestIndex ? null : nextIndex });
+      return;
+    }
+
+    // Case B: on the latest frame — advance to a new frame if complete.
+    const frame = current.frames[latestIndex];
     if (!isFrameComplete(frame.events)) return;
     const { match } = await appendEvent(current.id, {
       kind: 'frame_end',
@@ -206,29 +209,61 @@ export const useMatchStore = create<MatchState>((set, get) => ({
     applyFresh(set, get, match);
   },
 
+  /**
+   * Back button. Pure navigation — moves the viewed frame index back one.
+   * Never destroys data. Disabled on frame 1 (checked via canGoBackFrame).
+   */
+  goBackFrame: () => {
+    const { current, viewedFrameIndex } = get();
+    if (!current) return;
+    const latestIndex = current.frames.length - 1;
+    const viewing = viewedFrameIndex ?? latestIndex;
+    if (viewing <= 0) return;
+    set({ viewedFrameIndex: viewing - 1 });
+  },
+
+  canGoBackFrame: () => {
+    const { current, viewedFrameIndex } = get();
+    if (!current) return false;
+    const latestIndex = current.frames.length - 1;
+    const viewing = viewedFrameIndex ?? latestIndex;
+    return viewing > 0;
+  },
+
+  isViewingHistoricalFrame: () => {
+    const { current, viewedFrameIndex } = get();
+    if (!current || viewedFrameIndex === null) return false;
+    return viewedFrameIndex < current.frames.length - 1;
+  },
+
+  isLatestFrame: () => {
+    const { current, viewedFrameIndex } = get();
+    if (!current) return true;
+    if (viewedFrameIndex === null) return true;
+    return viewedFrameIndex >= current.frames.length - 1;
+  },
+
   endMatch: async () => {
     const { current } = get();
     if (!current) return null;
     const { match } = await appendEvent(current.id, { kind: 'match_end' });
     // Clear in-memory match so navigation away from scoring doesn't show stale data.
-    set({ current: null, events: [], activeSlot: 0 });
+    set({ current: null, events: [], activeSlot: 0, viewedFrameIndex: null });
     return match;
   },
 
   abandonMatch: async () => {
     const { current } = get();
     if (!current) {
-      set({ current: null, events: [], activeSlot: 0 });
+      set({ current: null, events: [], activeSlot: 0, viewedFrameIndex: null });
       return;
     }
     await appendEvent(current.id, { kind: 'abandon' });
-    set({ current: null, events: [], activeSlot: 0 });
+    set({ current: null, events: [], activeSlot: 0, viewedFrameIndex: null });
   },
 
   currentFrame: () => {
-    const { current } = get();
-    if (!current) return null;
-    return current.frames[current.frames.length - 1] ?? null;
+    return viewedFrame(get());
   },
 
   currentBreakerSlot: () => {
@@ -295,17 +330,38 @@ function applyFresh(
   if (!fresh) return;
   const prev = get();
   if (!prev.current) {
-    set({ current: fresh, activeSlot: activeSlotFromMatch(fresh) });
+    set({
+      current: fresh,
+      activeSlot: activeSlotFromMatch(fresh),
+      viewedFrameIndex: null,
+    });
     return;
   }
   const prevFrames = prev.current.frames.length;
   const newFrames = fresh.frames.length;
   let activeSlot = prev.activeSlot;
+  // If a new frame was created, snap the view back to the latest frame so the
+  // user starts shooting the fresh frame and active slot follows its breaker.
+  let viewedFrameIndex = prev.viewedFrameIndex;
   if (newFrames > prevFrames) {
     const newFrame = fresh.frames[fresh.frames.length - 1];
     activeSlot = newFrame.breakerSlot;
+    viewedFrameIndex = null;
   }
-  set({ current: fresh, activeSlot });
+  set({ current: fresh, activeSlot, viewedFrameIndex });
+}
+
+/**
+ * Resolve which Frame the user is currently viewing/editing.
+ * Falls back to the latest frame if viewedFrameIndex is null or out of range.
+ */
+function viewedFrame(state: MatchState): Frame | null {
+  const { current, viewedFrameIndex } = state;
+  if (!current || current.frames.length === 0) return null;
+  const latestIndex = current.frames.length - 1;
+  if (viewedFrameIndex === null) return current.frames[latestIndex];
+  const clamped = Math.max(0, Math.min(viewedFrameIndex, latestIndex));
+  return current.frames[clamped];
 }
 
 export { ballValue };

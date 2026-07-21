@@ -14,7 +14,7 @@ import { PlayerCard } from '@/components/PlayerCard';
 import { BallGrid } from '@/components/BallGrid';
 import { RulesModal } from '@/components/RulesModal';
 import { colors } from '@/theme/colors';
-import { breakerForFrame, playerFullName } from '@/domain/types';
+import { playerFullName } from '@/domain/types';
 
 function formatElapsed(ms: number): string {
   if (!isFinite(ms) || ms < 0) ms = 0;
@@ -33,8 +33,11 @@ export default function Scoring() {
   const setActiveSlot = useMatchStore((s) => s.setActiveSlot);
   const pocketBall = useMatchStore((s) => s.pocketBall);
   const unpocketBall = useMatchStore((s) => s.unpocketBall);
-  const undoLast = useMatchStore((s) => s.undoLast);
   const nextFrame = useMatchStore((s) => s.nextFrame);
+  const goBackFrame = useMatchStore((s) => s.goBackFrame);
+  const canGoBackFrame = useMatchStore((s) => s.canGoBackFrame());
+  const isViewingHistorical = useMatchStore((s) => s.isViewingHistoricalFrame());
+  const isLatestFrame = useMatchStore((s) => s.isLatestFrame());
   const matchTotals = useMatchStore((s) => s.matchTotals());
   const frameTotals = useMatchStore((s) => s.frameTotals());
   const pocketedBy = useMatchStore((s) => s.pocketedBy());
@@ -43,6 +46,7 @@ export default function Scoring() {
   const endMatch = useMatchStore((s) => s.endMatch);
   const abandonMatch = useMatchStore((s) => s.abandonMatch);
   const currentBreakerSlot = useMatchStore((s) => s.currentBreakerSlot());
+  const viewedFrame = useMatchStore((s) => s.currentFrame());
 
   const [askedFinish, setAskedFinish] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -113,24 +117,16 @@ export default function Scoring() {
   const topSlot: 0 | 1 = current.initialBreakerSlot;
   const bottomSlot: 0 | 1 = topSlot === 0 ? 1 : 0;
 
+  // Next Frame button. Context-aware in the store:
+  //   • On latest complete frame → advances to a new frame.
+  //   • On a historical frame     → moves the viewed index forward.
+  // No confirmation alert — the BREAKING pill on the player card already
+  // indicates who breaks next.
   const onNextFrame = () => {
-    if (!frameComplete) return;
-    const nextIndex = current.frames.length;
-    const nextBreaker = breakerForFrame(current.initialBreakerSlot, nextIndex);
-    const nextBreakerName = playerFullName(current.players[nextBreaker]);
-    Alert.alert(
-      'Next Frame',
-      `${nextBreakerName} breaks the next frame.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Start Frame',
-          style: 'default',
-          isPreferred: true,
-          onPress: () => nextFrame(),
-        },
-      ]
-    );
+    // Only guard the "create new frame" case; navigating forward through
+    // history is always allowed.
+    if (isLatestFrame && !frameComplete) return;
+    nextFrame();
   };
 
   // End-match confirmation (callable any time, including after "Continue Shooting")
@@ -214,9 +210,10 @@ export default function Scoring() {
       {/* Header strip */}
       <View style={styles.headerRow}>
         <Pressable
-          onPress={undoLast}
+          onPress={goBackFrame}
           onLongPress={onAbandon}
-          style={styles.headerBtn}
+          disabled={!canGoBackFrame}
+          style={[styles.headerBtn, !canGoBackFrame && { opacity: 0.4 }]}
         >
           <Text style={styles.headerBtnText}>← Back</Text>
         </Pressable>
@@ -243,20 +240,25 @@ export default function Scoring() {
 
         <Pressable
           onPress={onNextFrame}
-          disabled={!frameComplete}
+          disabled={isLatestFrame && !frameComplete}
           style={[
             styles.headerBtn,
             styles.headerBtnRight,
-            !frameComplete && { opacity: 0.4 },
+            isLatestFrame && !frameComplete && { opacity: 0.4 },
           ]}
         >
-          <Text style={styles.headerBtnText}>Next Frame →</Text>
+          <Text style={styles.headerBtnText}>
+            {isLatestFrame ? 'Next Frame →' : 'Forward →'}
+          </Text>
         </Pressable>
       </View>
 
       <View style={styles.labelRow}>
-        <View style={styles.pillLabel}>
-          <Text style={styles.pillLabelText}>FRAME {current.frames.length}</Text>
+        <View style={[styles.pillLabel, isViewingHistorical && styles.pillLabelHistorical]}>
+          <Text style={styles.pillLabelText}>
+            FRAME {(viewedFrame?.index ?? current.frames.length - 1) + 1}
+            {isViewingHistorical ? '  •  HISTORY' : ''}
+          </Text>
         </View>
         <View style={styles.pillLabel}>
           <Text style={styles.pillLabelText}>MATCH TIME {elapsedLabel}</Text>
@@ -369,6 +371,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
+  },
+  pillLabelHistorical: {
+    backgroundColor: 'rgba(255,180,60,0.16)',
+    borderColor: 'rgba(255,180,60,0.55)',
   },
   pillLabelText: {
     color: colors.textPrimary,
