@@ -207,7 +207,7 @@ export default function Scoring() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Header strip */}
+      {/* Header strip: nav buttons only */}
       <View style={styles.headerRow}>
         <Pressable
           onPress={goBackFrame}
@@ -217,26 +217,6 @@ export default function Scoring() {
         >
           <Text style={styles.headerBtnText}>← Back</Text>
         </Pressable>
-
-        <View style={styles.headerCenterWrap}>
-          <View style={styles.raceToPill}>
-            <Text style={styles.raceToPillText}>RACE TO {current.raceTo}</Text>
-          </View>
-          <View style={styles.chipRow}>
-            <Pressable
-              onPress={() => setRulesOpen(true)}
-              style={({ pressed }) => [styles.rulesChip, pressed && { opacity: 0.7 }]}
-              hitSlop={6}
-            >
-              <Text style={styles.rulesChipText}>RULES</Text>
-            </Pressable>
-            {showEndChip && (
-              <Pressable onPress={onEndMatch} style={styles.endChip}>
-                <Text style={styles.endChipText}>END MATCH</Text>
-              </Pressable>
-            )}
-          </View>
-        </View>
 
         <Pressable
           onPress={onNextFrame}
@@ -251,6 +231,27 @@ export default function Scoring() {
             {isLatestFrame ? 'Next Frame →' : 'Forward →'}
           </Text>
         </Pressable>
+      </View>
+
+      {/* Center cluster: full-screen-centered RACE TO + RULES + END MATCH */}
+      <View style={styles.centerCluster}>
+        <View style={styles.raceToPill}>
+          <Text style={styles.raceToPillText}>RACE TO {current.raceTo}</Text>
+        </View>
+        <View style={styles.chipRow}>
+          <Pressable
+            onPress={() => setRulesOpen(true)}
+            style={({ pressed }) => [styles.rulesChip, pressed && { opacity: 0.7 }]}
+            hitSlop={6}
+          >
+            <Text style={styles.rulesChipText}>RULES</Text>
+          </Pressable>
+          {showEndChip && (
+            <Pressable onPress={onEndMatch} style={styles.endChip}>
+              <Text style={styles.endChipText}>END MATCH</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
 
       <View style={styles.labelRow}>
@@ -303,15 +304,10 @@ const styles = StyleSheet.create({
   },
   headerBtnRight: { backgroundColor: colors.success },
   headerBtnText: { color: colors.textPrimary, fontWeight: '700' },
-  headerCenterWrap: {
-    flex: 1,
+  centerCluster: {
     alignItems: 'center',
-    gap: 4,
-  },
-  headerCenter: {
-    color: colors.textSecondary,
-    letterSpacing: 2,
-    fontWeight: '700',
+    gap: 8,
+    marginTop: 12,
   },
   raceToPill: {
     backgroundColor: 'rgba(255,255,255,0.08)',
