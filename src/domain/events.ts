@@ -82,19 +82,31 @@ export function replayMatch(init: MatchInit, events: MatchEvent[]): Match {
     switch (ev.kind) {
       case 'pocket': {
         if (ev.ballNumber == null || ev.shooterSlot == null) break;
+        // Route the event to the frame it targets. Historical-frame edits
+        // record the frame_index they intend to modify; if the field is
+        // missing (older events) or out of range, fall back to the latest
+        // frame so replay is backwards-compatible.
+        const target =
+          ev.frameIndex != null && frames[ev.frameIndex]
+            ? frames[ev.frameIndex]
+            : last;
         // Idempotency: skip if already pocketed in this frame.
-        if (last.events.some((e) => e.ball === ev.ballNumber)) break;
+        if (target.events.some((e) => e.ball === ev.ballNumber)) break;
         const pe: PocketEvent = {
           ball: ev.ballNumber,
           playerSlot: ev.shooterSlot,
           at: ev.ts,
         };
-        last.events = [...last.events, pe];
+        target.events = [...target.events, pe];
         break;
       }
       case 'unpocket': {
         if (ev.ballNumber == null) break;
-        last.events = last.events.filter((e) => e.ball !== ev.ballNumber);
+        const target =
+          ev.frameIndex != null && frames[ev.frameIndex]
+            ? frames[ev.frameIndex]
+            : last;
+        target.events = target.events.filter((e) => e.ball !== ev.ballNumber);
         break;
       }
       case 'frame_end': {
