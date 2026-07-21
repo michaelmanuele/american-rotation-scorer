@@ -233,12 +233,13 @@ export default function Scoring() {
         </Pressable>
       </View>
 
-      {/* Center cluster: full-screen-centered RACE TO + RULES + END MATCH */}
+      {/* Center cluster: full-screen-centered RACE TO + RULES + END MATCH.
+          RACE TO and RULES sit side by side to save vertical space. */}
       <View style={styles.centerCluster}>
-        <View style={styles.raceToPill}>
-          <Text style={styles.raceToPillText}>RACE TO {current.raceTo}</Text>
-        </View>
         <View style={styles.chipRow}>
+          <View style={styles.raceToPill}>
+            <Text style={styles.raceToPillText}>RACE TO {current.raceTo}</Text>
+          </View>
           <Pressable
             onPress={() => setRulesOpen(true)}
             style={({ pressed }) => [styles.rulesChip, pressed && { opacity: 0.7 }]}
