@@ -28,6 +28,7 @@ import {
   type ChallongeTournament,
 } from '@/services/challonge';
 import { isSignedIn, useChallongeSignIn } from '@/services/auth';
+import { CHALLONGE_ENABLED } from '@/config/features';
 
 type TestState =
   | { kind: 'idle' }
@@ -164,7 +165,9 @@ export default function Settings() {
     setMyId(p.id);
   };
 
-  if (loading) {
+  // When Challonge is disabled the entire preload is irrelevant — skip the
+  // loading spinner so the version footer renders immediately.
+  if (loading && CHALLONGE_ENABLED) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={colors.primary} />
@@ -178,6 +181,7 @@ export default function Settings() {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      {CHALLONGE_ENABLED && (<>
       <Text style={styles.section}>CHALLONGE</Text>
 
       {/* Sign-in card ------------------------------------------------------ */}
@@ -319,6 +323,7 @@ export default function Settings() {
           </View>
         </View>
       )}
+      </>)}
 
       <View style={styles.versionRow}>
         <Text style={styles.versionText}>

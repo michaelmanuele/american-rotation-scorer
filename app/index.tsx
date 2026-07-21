@@ -7,6 +7,7 @@ import { useMatchStore } from '@/store/matchStore';
 import { findInProgress, type MatchSummary } from '@/db/matches';
 import { playerFullName } from '@/domain/types';
 import { RulesModal } from '@/components/RulesModal';
+import { CHALLONGE_ENABLED } from '@/config/features';
 
 const APP_VERSION = Constants.expoConfig?.version ?? '0.0.0';
 const BUILD_NUMBER =
@@ -121,7 +122,9 @@ export default function Home() {
         <MenuButton href="/match/new" label="New Match" primary />
         <MenuButton href="/history" label="History" />
         <MenuButton href="/roster" label="Players" />
-        <MenuButton href="/tournaments" label="League" />
+        {CHALLONGE_ENABLED && (
+          <MenuButton href="/tournaments" label="League" />
+        )}
       </View>
 
       <View style={styles.rulesRow}>

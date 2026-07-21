@@ -27,6 +27,7 @@ import {
 } from '@/db/players';
 import { playerFullName, type Player } from '@/domain/types';
 import { useRosterStore } from '@/store/rosterStore';
+import { CHALLONGE_ENABLED } from '@/config/features';
 
 type LoadState =
   | { kind: 'idle' }
@@ -42,6 +43,14 @@ type SyncResult = {
 };
 
 export default function Tournaments() {
+  // Belt-and-suspenders guard for the production feature flag. The League
+  // home button is already hidden when the flag is off, but expo-router can
+  // reach this route via URL, so redirect out defensively.
+  if (!CHALLONGE_ENABLED) {
+    router.replace('/');
+    return null;
+  }
+
   const [state, setState] = useState<LoadState>({ kind: 'idle' });
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<SyncResult | null>(null);
